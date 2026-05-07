@@ -514,57 +514,75 @@
 
     document.getElementById('scriptInput').addEventListener('input', updateStats);
 
-    // ==================== SCENES ====================
-    async function extractScenes() {
-      const script = document.getElementById('scriptInput').value.trim();
-      if (!script) return alert('Paste your script first.');
-      const btn = document.getElementById('btnScenes');
-      const status = document.getElementById('status');
-      btn.disabled = true;
-      status.innerHTML = '<span class="spinner"></span> Analyzing script...';
+   // ==================== SCENES ====================
+async function extractScenes() {
+  const script = document.getElementById('scriptInput').value.trim();
+  if (!script) return alert('Paste your script first.');
+  const btn = document.getElementById('btnScenes');
+  const status = document.getElementById('status');
+  btn.disabled = true;
+  status.innerHTML = '<span class="spinner"></span> Analyzing script...';
 
-      const charCount = script.length;
-      const estDur = charCount / 15;
-      const numScenes = Math.max(2, Math.min(5, Math.ceil(estDur / 5)));
+  const charCount = script.length;
+  const estDuration = Math.min(60, Math.ceil(charCount / 15));
+  
+  // Get user's preferred seconds per clip
+  const secPerClip = parseInt(document.getElementById('secPerClip').value) || 5;
+  const numScenes = Math.max(2, Math.min(10, Math.ceil(estDuration / secPerClip)));
 
-      try {
-        const r = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            messages: [
-              {
-                role: 'system',
-                content: `Extract exactly ${numScenes} visual scene descriptions (3-6 words each) from this script. Output one per line, no numbers, no extra text. Make them searchable stock footage keywords for Pexels.`
-              },
-              { role: 'user', content: script }
-            ]
-          })
-        });
-        const d = await r.json();
-        if (d.choices?.[0]) {
-          scenes = d.choices[0].message.content.split('\n').filter(l=>l.trim()).map(l=>l.replace(/^\d+[\.\)]\s*/,'').trim());
-          renderScenes();
-          document.getElementById('btnFetch').disabled = false;
-          status.innerHTML = `✅ ${scenes.length} scenes extracted`;
-        }
-      } catch (e) {
-        status.innerHTML = '❌ Failed to extract scenes';
-      }
-      btn.disabled = false;
-      updateStats();
+  try {
+    const r = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [
+          {
+            role: 'system',
+            content: `Split this script into exactly ${numScenes} scenes for a ${estDuration}-second video. Use GENERIC, HIGHLY SEARCHABLE stock footage terms like "city traffic", "ocean waves", "office work", "walking street", "aerial nature", "sunset sky", "people crowd", "mountain view". Avoid specific or rare subjects. Output one scene per line in this format: "keyword1 keyword2 keyword3". No numbers, no extra text.`
+          },
+          { role: 'user', content: script }
+        ]
+      })
+    });
+    const d = await r.json();
+    if (d.choices?.[0]) {
+      const lines = d.choices[0].message.content.split('\n').filter(l => l.trim());
+      scenes = lines.map(l => l.replace(/^\d+[\.\)]\s*/, '').replace(/^\d+\.?\d*\s*/, '').trim());
+      
+      // Equal timestamps based on user's chosen seconds
+      const clipDuration = parseInt(document.getElementById('secPerClip').value) || 5;
+      sceneTimestamps = scenes.map((_, i) => i * clipDuration);
+      
+      renderScenes();
+      document.getElementById('btnFetch').disabled = false;
+      status.innerHTML = `✅ ${scenes.length} scenes extracted (~${clipDuration}s each, click to edit)`;
     }
+  } catch (e) {
+    status.innerHTML = '❌ Failed to extract scenes';
+  }
+  btn.disabled = false;
+  updateStats();
+}
 
-    function renderScenes() {
-      document.getElementById('sceneList').innerHTML = scenes.map((s,i) => `
-        <div class="scene-item" id="scene-${i}">
-          <span class="scene-num">${i+1}</span>
-          <span>${s}</span>
-          <span class="status-dot pending" id="dot-${i}"></span>
-        </div>
-      `).join('');
-    }
+function renderScenes() {
+  document.getElementById('sceneList').innerHTML = scenes.map((s, i) => `
+    <div class="scene-item found" id="scene-${i}">
+      <span class="scene-num">${i+1}</span>
+      <input 
+        type="text" 
+        value="${s}" 
+        id="keyword-${i}" 
+        style="flex:1;background:transparent;border:none;color:#ccc;font-size:12px;outline:none;padding:4px 0;"
+        onchange="updateKeyword(${i}, this.value)"
+      >
+      <span class="status-dot pending" id="dot-${i}"></span>
+    </div>
+  `).join('');
+}
 
+function updateKeyword(index, value) {
+  scenes[index] = value.trim();
+}
     // ==================== PEXELS ====================
     async function fetchVideos() {
       if (!scenes.length) return;
