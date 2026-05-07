@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const https = require('https');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -65,67 +66,127 @@ app.get('/api/pexels/videos', async (req, res) => {
 app.post('/api/tts', async (req, res) => {
   try {
     const { text } = req.body;
-    
-    // SSML for Edge TTS with a natural female voice
-    const ssml = `
-      <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="en-US">
-        <voice name="en-US-JennyNeural">
-          <prosody rate="0.95" pitch="0%">
-            ${text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')}
-          </prosody>
-        </voice>
-      </speak>
-    `;
 
-    const response = await fetch(
-      'https://eastus.tts.speech.microsoft.com/cognitiveservices/v1',
-      {
-        method: 'POST',
-        headers: {
-          'Ocp-Apim-Subscription-Key': process.env.AZURE_SPEECH_KEY || '',
-          'Content-Type': 'application/ssml+xml',
-          'X-Microsoft-OutputFormat': 'audio-48khz-96kbitrate-mono-mp3',
-          'User-Agent': 'ShortsForge'
-        },
-        body: ssml
-      }
-    );
+    // Try multiple Edge TTS endpoints
+    const endpoints = [
+      // Method 1: Direct Edge TTS API
+      async () => {
+        const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="en-US">
+          <voice name="en-US-JennyNeural">
+            <prosody rate="0.95" pitch="0%">
+              ${text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')}
+            </prosody>
+          </voice>
+        </speak>`;
 
-    if (!response.ok) {
-      // Fallback: use free Edge TTS endpoint
-      const fallbackRes = await fetch(
-        `https://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=6A5AA1D9EAFF4E9FB37E23D68491D6F4`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'X-Microsoft-OutputFormat': 'audio-24khz-48kbitrate-mono-mp3'
-          },
-          body: JSON.stringify({
-            text: text,
-            voiceName: 'en-US-JennyNeural',
-            rate: '-5%',
-            pitch: '0%',
-            outputFormat: 'audio-24khz-48kbitrate-mono-mp3'
-          })
+        const response = await fetch(
+          'https://eastus.tts.speech.microsoft.com/cognitiveservices/v1',
+          {
+            method: 'POST',
+            headers: {
+              'Ocp-Apim-Subscription-Key': process.env.AZURE_SPEECH_KEY || '',
+              'Content-Type': 'application/ssml+xml',
+              'X-Microsoft-OutputFormat': 'audio-24khz-96kbitrate-mono-mp3',
+              'User-Agent': 'ShortsForge/1.0'
+            },
+            body: ssml
+          }
+        );
+        
+        if (response.ok) {
+          return Buffer.from(await response.arrayBuffer());
         }
-      );
+        return null;
+      },
 
-      if (!fallbackRes.ok) {
-        throw new Error(`TTS failed: ${fallbackRes.status}`);
+      // Method 2: Edge Read Aloud API (free, no key)
+      async () => {
+        const response = await fetch(
+          'https://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=6A5AA1D9EAFF4E9FB37E23D68491D6F4',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Origin': 'https://www.bing.com',
+              'Referer': 'https://www.bing.com/',
+              'X-Microsoft-OutputFormat': 'audio-24khz-48kbitrate-mono-mp3',
+              'Accept': '*/*'
+            },
+            body: JSON.stringify({
+              text: text,
+              voiceName: 'en-US-JennyNeural',
+              rate: '-5%',
+              pitch: '0%',
+              outputFormat: 'audio-24khz-48kbitrate-mono-mp3'
+            })
+          }
+        );
+        
+        if (response.ok) {
+          return Buffer.from(await response.arrayBuffer());
+        }
+        return null;
+      },
+
+      // Method 3: Alternative Edge endpoint
+      async () => {
+        const ssml = `<speak xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="http://www.w3.org/2001/mstts" version="1.0" xml:lang="en-US">
+          <voice name="en-US-JennyNeural">
+            <mstts:express-as style="general" styledegree="1.0">
+              <prosody rate="-5.00%" pitch="+0.00%">
+                ${text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')}
+              </prosody>
+            </mstts:express-as>
+          </voice>
+        </speak>`;
+
+        const response = await fetch(
+          'https://southcentralus.tts.speech.microsoft.com/cognitiveservices/v1',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/ssml+xml',
+              'X-Microsoft-OutputFormat': 'audio-24khz-96kbitrate-mono-mp3',
+              'User-Agent': 'ShortsForge/1.0',
+              'Authorization': `Bearer ${process.env.AZURE_SPEECH_KEY || ''}`
+            },
+            body: ssml
+          }
+        );
+        
+        if (response.ok) {
+          return Buffer.from(await response.arrayBuffer());
+        }
+        return null;
       }
+    ];
 
-      const audioBuffer = await fallbackRes.arrayBuffer();
-      res.set('Content-Type', 'audio/mpeg');
-      return res.send(Buffer.from(audioBuffer));
+    // Try each endpoint
+    for (const endpoint of endpoints) {
+      try {
+        const audioData = await endpoint();
+        if (audioData && audioData.length > 0) {
+          res.set({
+            'Content-Type': 'audio/mpeg',
+            'Content-Length': audioData.length
+          });
+          return res.send(audioData);
+        }
+      } catch (err) {
+        console.log('TTS endpoint failed, trying next...');
+      }
     }
 
-    const audioBuffer = await response.arrayBuffer();
-    res.set('Content-Type', 'audio/mpeg');
-    res.send(Buffer.from(audioBuffer));
+    // If all fail, return error
+    throw new Error('All TTS endpoints failed');
+    
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('TTS Error:', error.message);
+    res.status(500).json({ 
+      error: 'TTS generation failed',
+      fallback: 'browser-tts'
+    });
   }
 });
 
