@@ -15,7 +15,7 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Proxy endpoint for GPT chat
+// Proxy endpoint for GPT chat / scene extraction
 app.post('/api/chat', async (req, res) => {
   try {
     const { messages } = req.body;
@@ -40,25 +40,19 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
-// Proxy endpoint for DALL-E image generation
-app.post('/api/generate-image', async (req, res) => {
+// Proxy endpoint for Pexels video search
+app.get('/api/pexels/videos', async (req, res) => {
   try {
-    const { prompt } = req.body;
+    const { query, per_page } = req.query;
     
-    const response = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'dall-e-3',
-        prompt: prompt,
-        n: 1,
-        size: '1024x1792', // 9:16 vertical for Shorts
-        quality: 'standard'
-      })
-    });
+    const response = await fetch(
+      `https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&per_page=${per_page || 1}`,
+      {
+        headers: {
+          'Authorization': `${process.env.PEXELS_API_KEY}`
+        }
+      }
+    );
 
     const data = await response.json();
     res.json(data);
