@@ -4,8 +4,7 @@
   "description": "YouTube Shorts video creator with server-side rendering",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "postinstall": "ffmpeg-installer"
+    "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
