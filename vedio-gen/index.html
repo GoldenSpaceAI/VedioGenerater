@@ -452,8 +452,8 @@
 
   <div class="countdown-overlay" id="countdown"></div>
 
-  <!-- FFmpeg -->
-  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.min.js"></script>
+  <!-- FFmpeg - Using unpkg for a consistent, reliable source -->
+  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/umd/ffmpeg.js"></script>
 
   <script>
     // ==================== CHAT ====================
@@ -680,7 +680,7 @@
       }
     }
 
-    // ==================== FFMPEG ====================
+    // ==================== FFMPEG (RELIABLE VERSION) ====================
     let ffmpeg = null;
     let ffmpegLoading = null;
 
@@ -688,13 +688,21 @@
       if (ffmpeg) return ffmpeg;
       if (ffmpegLoading) return ffmpegLoading;
 
-      document.getElementById('status').innerHTML = '<span class="spinner"></span> Loading video engine...';
+      document.getElementById('status').innerHTML = '<span class="spinner"></span> Loading video engine... (this can take 20s on first run)';
 
       ffmpegLoading = (async () => {
-        const { FFmpeg } = FFmpegWASM;
+        const { FFmpeg } = FFmpegWASM; // This comes from the unpkg script we loaded
         ffmpeg = new FFmpeg();
-        ffmpeg.on('log', ({ message }) => console.log(message));
-        await ffmpeg.load();
+        
+        ffmpeg.on('log', ({ message }) => console.log('[FFmpeg]', message));
+        
+        // CRITICAL FIX: Explicitly point to core & worker files from the SAME version
+        await ffmpeg.load({
+          corePath: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',
+          workerPath: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.worker.js'
+        });
+        
+        console.log('FFmpeg loaded successfully!');
         return ffmpeg;
       })();
 
