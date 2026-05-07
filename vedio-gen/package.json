@@ -1,14 +1,19 @@
 {
   "name": "shorts-creator",
-  "version": "1.0.0",
-  "description": "YouTube Shorts video creator",
+  "version": "2.0.0",
+  "description": "YouTube Shorts video creator with server-side rendering",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "postinstall": "ffmpeg-installer"
   },
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "fluent-ffmpeg": "^2.1.2",
+    "multer": "^1.4.5-lts.1",
+    "uuid": "^9.0.0"
   }
 }
