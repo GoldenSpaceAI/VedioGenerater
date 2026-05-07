@@ -215,36 +215,43 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     }
     fs.writeFileSync(listPath, listContent);
     
-    // Final render
-    const outputPath = path.join(renderDir, 'output.mp4');
-    console.log('Final render...');
-    
-    await runFfmpeg([
-      '-f', 'concat',
-      '-safe', '0',
-      '-i', listPath,
-      '-i', audioPath,
-      '-c:v', 'libx264',
-      '-preset', 'ultrafast',
-      '-crf', '23',
-      '-c:a', 'aac',
-      '-b:a', '128k',
-      '-pix_fmt', 'yuv420p',
-      '-movflags', '+faststart',
-      '-shortest',
-      '-y',
-      outputPath
-    ]);
-    
-    console.log('Sending file...');
-    const videoBuffer = fs.readFileSync(outputPath);
-    res.set({
-      'Content-Type': 'video/mp4',
-      'Content-Disposition': `attachment; filename="short_${Date.now()}.mp4"`,
-      'Content-Length': videoBuffer.length
-    });
-    res.send(videoBuffer);
-    
+    // Final render — two steps to save memory
+const outputPath = path.join(renderDir, 'output.mp4');
+const silentPath = path.join(renderDir, 'silent.mp4');
+
+// Step 1: Stitch clips WITHOUT audio (uses less memory)
+console.log('Final render — step 1: stitching clips...');
+await runFfmpeg([
+  '-f', 'concat',
+  '-safe', '0',
+  '-i', listPath,
+  '-c:v', 'libx264',
+  '-preset', 'ultrafast',
+  '-crf', '23',
+  '-pix_fmt', 'yuv420p',
+  '-an',
+  '-y',
+  silentPath
+]);
+
+// Delete individual clips to free memory
+for (let i = 0; i < clipData.length; i++) {
+  try { fs.unlinkSync(path.join(renderDir, `clip_${i}.mp4`)); } catch (e) {}
+}
+
+// Step 2: Add audio to the stitched video
+console.log('Final render — step 2: adding audio...');
+await runFfmpeg([
+  '-i', silentPath,
+  '-i', audioPath,
+  '-c:v', 'copy',
+  '-c:a', 'aac',
+  '-b:a', '128k',
+  '-movflags', '+faststart',
+  '-shortest',
+  '-y',
+  outputPath
+]);
     // Cleanup after 5 min
     setTimeout(() => {
       try { fs.rmSync(renderDir, { recursive: true, force: true }); } catch (e) {}
