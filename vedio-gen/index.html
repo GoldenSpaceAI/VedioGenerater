@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shorts Creator - Faris</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #000;
+      color: #fff;
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* ============ CHAT PANEL (30%) ============ */
+    .chat-panel {
+      width: 30%;
+      border-right: 1px solid #333;
+      display: flex;
+      flex-direction: column;
+      background: #0a0a0a;
+    }
+
+    .chat-header {
+      padding: 15px;
+      border-bottom: 1px solid #333;
+      font-weight: bold;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #ccc;
+    }
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .chat-messages::-webkit-scrollbar {
+      width: 4px;
+    }
+    .chat-messages::-webkit-scrollbar-thumb {
+      background: #333;
+      border-radius: 2px;
+    }
+
+    .message {
+      max-width: 90%;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      word-wrap: break-word;
+    }
+
+    .message.user {
+      background: #1a1a1a;
+      align-self: flex-end;
+      border: 1px solid #333;
+      border-radius: 12px 12px 4px 12px;
+    }
+
+    .message.assistant {
+      background: #111;
+      align-self: flex-start;
+      border: 1px solid #222;
+      border-radius: 12px 12px 12px 4px;
+    }
+
+    .chat-input-area {
+      padding: 15px;
+      border-top: 1px solid #333;
+      display: flex;
+      gap: 8px;
+    }
+
+    .chat-input-area input {
+      flex: 1;
+      padding: 10px 14px;
+      background: #111;
+      border: 1px solid #333;
+      color: #fff;
+      border-radius: 20px;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .chat-input-area input::placeholder {
+      color: #555;
+    }
+
+    .chat-input-area button {
+      padding: 10px 18px;
+      background: #fff;
+      color: #000;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .chat-input-area button:hover {
+      background: #ddd;
+    }
+
+    /* ============ VIDEO PANEL (70%) ============ */
+    .video-panel {
+      width: 70%;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    .video-panel::-webkit-scrollbar {
+      width: 4px;
+    }
+    .video-panel::-webkit-scrollbar-thumb {
+      background: #333;
+      border-radius: 2px;
+    }
+
+    .section-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: #666;
+      margin-bottom: 8px;
+      margin-top: 20px;
+    }
+
+    .section-title:first-child {
+      margin-top: 0;
+    }
+
+    textarea {
+      width: 100%;
+      padding: 14px;
+      background: #111;
+      border: 1px solid #333;
+      color: #fff;
+      border-radius: 8px;
+      font-size: 14px;
+      resize: vertical;
+      min-height: 100px;
+      font-family: inherit;
+      outline: none;
+    }
+
+    textarea::placeholder {
+      color: #444;
+    }
+
+    .row {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+    }
+
+    select {
+      padding: 10px 14px;
+      background: #111;
+      border: 1px solid #333;
+      color: #fff;
+      border-radius: 8px;
+      font-size: 13px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .info-badge {
+      background: #111;
+      border: 1px solid #333;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #aaa;
+    }
+
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .btn-primary {
+      background: #fff;
+      color: #000;
+    }
+
+    .btn-primary:hover {
+      background: #ddd;
+    }
+
+    .btn-secondary {
+      background: #1a1a1a;
+      color: #fff;
+      border: 1px solid #333;
+    }
+
+    .btn-secondary:hover {
+      background: #222;
+    }
+
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+
+    .prompt-preview {
+      background: #111;
+      border: 1px solid #333;
+  ￼  border-radius: 8px;
+      padding: 14px;
+      font-size: 12px;
+      color: #888;
+      min-height: 50px;
+      max-height: 120px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+
+    .image-preview-grid {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .image-preview-grid img {
+      width: 150px;
+      height: 266px;
+      object-fit: cover;
+      border-radius: 6px;
+      border: 1px solid #333;
+    }
+
+    .image-preview-grid .placeholder {
+      width: 150px;
+      height: 266px;
+      background: #111;
+      border: 1px dashed #333;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #444;
+      font-size: 12px;
+    }
+
+    canvas {
+      display: none;
+    }
+
+    .status {
+      font-size: 12px;
+      color: #666;
+      margin-top: 10px;
+    }
+
+    /* Loading spinner */
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #333;
+      border-top: 2px solid #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      margin-right: 8px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ============ CHAT PANEL (30%) ============ -->
+  <div class="chat-panel">
+    <div class="chat-header">💬 AI Assistant</div>
+    <div class="chat-messages" id="chatMessages">
+      <div class="message assistant">Hey! I can help you write scripts and titles for your Shorts. What's your video about?</div>
+    </div>
+    <div class="chat-input-area">
+      <input type="text" id="chatInput" placeholder="Ask me to write a script..." onkeydown="if(event.key==='Enter')sendChat()">
+      <button onclick="sendChat()">Send</button>
+    </div>
+  </div>
+
+  <!-- ============ VIDEO PANEL (70%) ============ -->
+  <div class="video-panel">
+    <div class="section-title">📝 Script / Subtitles</div>
+    <textarea id="scriptInput" placeholder="Paste your paragraph here... This will become the voiceover and determine how many images are generated."></textarea>
+
+    <div class="row" style="margin-top:15px;">
+      <div class="section-title" style="margin:0;">⏱️ Seconds Per Image</div>
+      <select id="secondsPerImage">
+        <option value="2">2 seconds</option>
+        <option value="5" selected>5 seconds</option>
+        <option value="7">7 seconds</option>
+      </select>
+      <div class="info-badge" id="durationInfo">~0 images • ~0s</div>
+    </div>
+
+    <div class="section-title">🤖 DALL-E Prompts (auto-generated)</div>
+    <div class="prompt-preview" id="promptPreview">Enter your script above and click "Generate Prompts"</div>
+
+    <div class="section-title">🖼️ Generated Images</div>
+    <div class="image-preview-grid" id="imageGrid">
+      <div class="placeholder">No images yet</div>
+    </div>
+
+    <div class="button-group">
+      <button class="btn btn-primary" id="btnGeneratePrompts" onclick="generatePrompts()">Generate Prompts</button>
+      <button class="btn btn-primary" id="btnGenerateImages" onclick="generateImages()" disabled>Generate Images</button>
+      <button class="btn btn-primary" id="btnCreateVideo" onclick="createVideo()" disabled>Create Video</button>
+    </div>
+
+    <div class="status" id="status"></div>
+
+    <!-- Hidden canvas for video rendering -->
+    <canvas id="videoCanvas" width="1080" height="1920"></canvas>
+  </div>
+
+  <!-- ffmpeg.wasm -->
+  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/umd/ffmpeg.js"></script>
+
+  <script>
+    // ==================== CHAT LOGIC ====================
+    const chatMessages = [];
+    // System prompt to keep AI focused
+    chatMessages.push({
+      role: 'system',
+      content: 'You are a helpful assistant for a YouTube Shorts creator. Keep responses short, punchy, and focused on helping write video scripts, titles, and descriptions. When asked to write a script, format it as a single paragraph suitable for voiceover.'
+    });
+
+    async function sendChat() {
+      const input = document.getElementById('chatInput');
+      const message = input.value.trim();
+      if (!message) return;
+
+      // Add user message
+      chatMessages.push({ role: 'user', content: message });
+      input.value = '';
+      renderChat();
+
+      // Show typing indicator
+      const typingDiv = document.createElement('div');
+      typingDiv.className = 'message assistant';
+      typingDiv.innerHTML = '<span class="spinner"></span> Thinking...';
+      typingDiv.id = 'typingIndicator';
+      document.getElementById('chatMessages').appendChild(typingDiv);
+      document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: chatMessages })
+        });
+        const data = await res.json();
+
+        // Remove typing indicator
+        document.getElementById('typingIndicator')?.remove();
+
+        if (data.choices && data.choices[0]) {
+          chatMessages.push({ role: 'assistant', content: data.choices[0].message.content });
+        } else {
+          chatMessages.push({ role: 'assistant', content: 'Sorry, something went wrong.' });
+        }
+      } catch (err) {
+        document.getElementById('typingIndicator')?.remove();
+        chatMessages.push({ role: 'assistant', content: 'Error connecting to AI.' });
+      }
+
+      renderChat();
+    }
+
+    function renderChat() {
+      const container = document.getElementById('chatMessages');
+      container.innerHTML = '';
+      chatMessages.forEach(msg => {
+        if (msg.role === 'system') return; // hide system prompt
+        const div = document.createElement('div');
+        div.className = `message ${msg.role}`;
+        div.textContent = msg.content;
+        container.appendChild(div);
+      });
+      container.scrollTop = container.scrollHeight;
+    }
+
+    // ==================== PROMPT GENERATION ====================
+    let dallePrompts = [];
+
+    async function generatePrompts() {
+      const script = document.getElementById('scriptInput').value.trim();
+      if (!script) {
+        alert('Please enter a script first.');
+        return;
+      }
+
+      const btn = document.getElementById('btnGeneratePrompts');
+      const status = document.getElementById('status');
+      btn.disabled = true;
+      status.innerHTML = '<span class="spinner"></span> Generating prompts...';
+
+      // Calculate how many images based on character count and seconds per image
+      const secPerImg = parseInt(document.getElementById('secondsPerImage').value);
+      const charCount = script.length;
+      // Average reading speed: ~15 chars per second
+      const estimatedDuration = charCount / 15;
+      const imageCount = Math.max(2, Math.ceil(estimatedDuration / secPerImg));
+
+      document.getElementById('durationInfo').textContent = `~${imageCount} images • ~${Math.round(estimatedDuration)}s`;
+
+      const promptGenMessages = [
+        {
+          role: 'system',
+          content: `You are a DALL-E 3 prompt generator. Convert the given script into exactly ${imageCount} visual scene descriptions. Each description must be a detailed DALL-E prompt for a 9:16 vertical image (portrait mode for YouTube Shorts). Focus on cinematic, eye-catching visuals. Output ONLY the prompts, one per line, numbered. No extra text.`
+        },
+        {
+          role: 'user',
+          content: `Script: "${script}"\n\nGenerate exactly ${imageCount} DALL-E prompts, one per line.`
+        }
+      ];
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: promptGenMessages })
+        });
+        const data = await res.json();
+
+        if (data.choices && data.choices[0]) {
+          const rawPrompts = data.choices[0].message.content;
+          // Parse numbered prompts
+          dallePrompts = rawPrompts.split('\n')
+            .filter(line => line.trim())
+            .map(line => line.replace(/^\d+[\.\)]\s*/, '').trim());
+
+          document.getElementById('promptPreview').textContent = dallePrompts.join('\n---\n');
+          document.getElementById('btnGenerateImages').disabled = false;
+          status.textContent = `✅ ${dallePrompts.length} prompts generated`;
+        }
+      } catch (err) {
+        status.textContent = '❌ Error generating prompts';
+      }
+
+      btn.disabled = false;
+    }
+
+    // ==================== IMAGE GENERATION ====================
+    const generatedImages = [];
+
+    async function generateImages() {
+      if (dallePrompts.length === 0) return;
+
+      const btn = document.getElementById('btnGenerateImages');
+      const status = document.getElementById('status');
+      const grid = document.getElementById('imageGrid');
+      btn.disabled = true;
+
+      grid.innerHTML = '';
+      generatedImages.length = 0;
+
+      for (let i = 0; i < dallePrompts.length; i++) {
+        status.innerHTML = `<span class="spinner"></span> Generating image ${i + 1} of ${dallePrompts.length}...`;
+
+        // Add placeholder
+        const placeholder = document.createElement('div');
+        placeholder.className = 'placeholder';
+        placeholder.textContent = `Generating... ${i + 1}/${dallePrompts.length}`;
+        placeholder.id = `placeholder-${i}`;
+        grid.appendChild(placeholder);
+
+        try {
+          const res = await fetch('/api/generate-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: dallePrompts[i] + ', vertical 9:16 aspect ratio, cinematic lighting' })
+          });
+          const data = await res.json();
+
+          if (data.data && data.data[0]) {
+            const imgUrl = data.data[0].url;
+            generatedImages.push(imgUrl);
+
+            // Replace placeholder with image
+            document.getElementById(`placeholder-${i}`)?.remove();
+            const img = document.createElement('img');
+            img.src = imgUrl;
+            img.alt = `Scene ${i + 1}`;
+            grid.appendChild(img);
+          }
+        } catch (err) {
+          document.getElementById(`placeholder-${i}`)?.remove();
+          const errorDiv = document.createElement('div');
+          errorDiv.className = 'placeholder';
+          errorDiv.textContent = `Failed: ${i + 1}`;
+          grid.appendChild(errorDiv);
+        }
+      }
+
+      if (generatedImages.length > 0) {
+        document.getElementById('btnCreateVideo').disabled = false;
+        status.textContent = `✅ ${generatedImages.length} images generated`;
+      } else {
+        status.textContent = '❌ No images generated';
+      }
+
+      btn.disabled = false;
+    }
+
+    // ==================== VIDEO CREATION ====================
+    const { FFmpeg } = FFmpegWASM;
+    let ffmpeg = null;
+
+    async function loadFFmpeg() {
+      if (ffmpeg) return ffmpeg;
+      const status = document.getElementById('status');
+      status.innerHTML = '<span class="spinner"></span> Loading FFmpeg... (first time may take a moment)';
+      
+      ffmpeg = new FFmpeg();
+      await ffmpeg.load();
+      return ffmpeg;
+    }
+
+    function getTTSDuration(text) {
+      // Rough estimate: ~150 words per minute = 2.5 words per second
+      // Average word length ~5 chars, so ~12.5 chars per second
+      const words = text.split(/\s+/).length;
+      return Math.max(1, Math.ceil(words / 2.5));
+    }
+
+    async function createVideo() {
+      if (generatedImages.length === 0) {
+        alert('Generate images first.');
+        return;
+      }
+
+      const btn = document.getElementById('btnCreateVideo');
+      const status = document.getElementById('status');
+      btn.disabled = true;
+
+      try {
+        const script = document.getElementById('scriptInput').value.trim();
+        const secPerImg = parseInt(document.getElementById('secondsPerImage').value);
+        const canvas = document.getElementById('videoCanvas');
+        const ctx = canvas.getContext('2d');
+
+        status.innerHTML = '<span class="spinner"></span> Loading FFmpeg...';
+        const ff = await loadFFmpeg();
+
+        // Generate TTS audio
+        status.innerHTML = '<span class="spinner"></span> Generating voiceover...';
+        const audioBlob = await generateTTSBlob(script);
+
+        // Write audio to FFmpeg virtual filesystem
+        const audioArray = new Uint8Array(await audioBlob.arrayBuffer());
+        await ff.writeFile('audio.mp3', audioArray);
+
+        // Render frames
+        status.innerHTML = '<span class="spinner"></span> Rendering video frames...';
+        const fps = 30;
+        const totalImages = generatedImages.length;
+
+        // Write each image to FFmpeg
+        for (let i = 0; i < totalImages; i++) {
+          const img = await loadImage(generatedImages[i]);
+          
+          // Draw image on canvas
+          canvas.width = 1080;
+          canvas.height = 1920;
+          ctx.clearRect(0, 0, 1080, 1920);
+          
+          // Scale and center image to fill 9:16
+          const scale = Math.max(1080 / img.width, 1920 / img.height);
+          const w = img.width * scale;
+          const h = img.height * scale;
+          const x = (1080 - w) / 2;
+          const y = (1920 - h) / 2;
+          ctx.drawImage(img, x, y, w, h);
+
+          // Convert canvas to blob
+          const frameBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+          const frameArray = new Uint8Array(await frameBlob.arrayBuffer());
+          await ff.writeFile(`frame_${i.toString().padStart(4, '0')}.png`, frameArray);
+        }
+
+        // Create concat file for ffmpeg
+        let concatContent = '';
+        for (let i = 0; i < totalImages; i++) {
+          concatContent += `file 'frame_${i.toString().padStart(4, '0')}.png'\n`;
+          concatContent += `duration ${secPerImg}\n`;
+        }
+        // Add last frame again for ffmpeg concat quirk
+        concatContent += `file 'frame_${(totalImages - 1).toString().padStart(4, '0')}.png'\n`;
+        
+        await ff.writeFile('concat.txt', concatContent);
+
+        // Run ffmpeg to create video with audio
+        status.innerHTML = '<span class="spinner"></span> Encoding video... this may take a minute';
+        
+        await ff.exec([
+          '-f', 'concat',
+          '-safe', '0',
+          '-i', 'concat.txt',
+          '-i', 'audio.mp3',
+          '-c:v', 'libx264',
+          '-preset', 'fast',
+          '-crf', '23',
+          '-c:a', 'aac',
+          '-b:a', '128k',
+          '-pix_fmt', 'yuv420p',
+          '-vf', 'scale=1080:1920,setsar=1',
+          '-shortest',
+          '-y',
+          'output.mp4'
+        ]);
+
+        // Read output file
+        const outputData = await ff.readFile('output.mp4');
+        const videoBlob = new Blob([outputData.buffer], { type: 'video/mp4' });
+        
+        // Create download
+        const url = URL.createObjectURL(videoBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'shorts-video.mp4';
+        a.click();
+        URL.revokeObjectURL(url);
+
+        status.textContent = `✅ Video created! Duration: ~${totalImages * secPerImg}s`;
+      } catch (err) {
+        console.error(err);
+        status.textContent = `❌ Error: ${err.message}`;
+      }
+
+      btn.disabled = false;
+    }
+
+    function loadImage(src) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+      });
+    }
+
+    async function generateTTSBlob(text) {
+      return new Promise((resolve, reject) => {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+
+        // Use AudioContext to capture TTS
+        const audioContext = new AudioContext();
+        const dest = audioContext.createMediaStreamDestination();
+        const mediaRecorder = new MediaRecorder(dest.stream, { mimeType: 'audio/webm' });
+        const chunks = [];
+
+        mediaRecorder.ondataavailable = e => chunks.push(e.data);
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(chunks, { type: 'audio/webm' });
+          audioContext.close();
+          resolve(blob);
+        };
+
+        // Connect TTS to audio context
+        const source = audioContext.createMediaStreamSource(dest.stream);
+        source.connect(audioContext.destination);
+
+        mediaRecorder.start();
+        utterance.onend = () => mediaRecorder.stop();
+        utterance.onerror = reject;
+        speechSynthesis.speak(utterance);
+      });
+    }
+
+    // ==================== DURATION CALCULATOR ====================
+    document.getElementById('scriptInput').addEventListener('input', updateDuration);
+    document.getElementById('secondsPerImage').addEventListener('change', updateDuration);
+
+    function updateDuration() {
+      const script = document.getElementById('scriptInput').value;
+      const secPerImg = parseInt(document.getElementById('secondsPerImage').value);
+      if (!script.trim()) {
+        document.getElementById('durationInfo').textContent = `~0 images • ~0s`;
+        return;
+      }
+      const charCount = script.length;
+      const estimatedDuration = charCount / 15;
+      const imageCount = Math.max(2, Math.ceil(estimatedDuration / secPerImg));
+      document.getElementById('durationInfo').textContent = `~${imageCount} images • ~${Math.round(estimatedDuration)}s`;
+    }
+  </script>
+
+</body>
+</html>
