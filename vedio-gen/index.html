@@ -270,6 +270,7 @@
       gap: 16px;
       align-items: center;
       flex-wrap: wrap;
+      margin-top: 14px;
     }
 
     .stat-badge {
@@ -368,6 +369,8 @@
     .btn:disabled {
       opacity: 0.35;
       cursor: not-allowed;
+      transform: none !important;
+      box-shadow: none !important;
     }
 
     .btn-primary {
@@ -389,12 +392,6 @@
     .btn-secondary:hover:not(:disabled) {
       border-color: var(--gold-dark);
       color: #fff;
-    }
-
-    .btn-danger {
-      background: transparent;
-      color: var(--danger);
-      border: 1px solid #3a1a1a;
     }
 
     .status-message {
@@ -419,16 +416,6 @@
 
     @keyframes spin {
       to { transform: rotate(360deg); }
-    }
-
-    .preview-thumb {
-      width: 100%;
-      max-width: 200px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      aspect-ratio: 9/16;
-      object-fit: cover;
-      background: var(--surface);
     }
 
     canvas {
@@ -476,9 +463,9 @@
     </div>
 
     <div class="section-label">📝 Your Script</div>
-    <textarea id="scriptInput" placeholder="Paste your voiceover script here...&#10;&#10;We'll extract scenes, fetch matching videos from Pexels, add your TTS voiceover, and stitch it all into an MP4 ready for YouTube Shorts."></textarea>
+    <textarea id="scriptInput" placeholder="Paste your voiceover script here...&#10;&#10;We'll extract scenes, fetch matching videos from Pexels, add natural TTS voiceover, and stitch it into an MP4 for YouTube Shorts."></textarea>
 
-    <div class="info-row" style="margin-top:14px;">
+    <div class="info-row">
       <div class="stat-badge">
         🎬 Scenes: <span class="value" id="sceneCount">—</span>
       </div>
@@ -486,7 +473,7 @@
         ⏱ Est. Duration: <span class="value" id="estDuration">—</span>
       </div>
       <div class="stat-badge">
-        📹 Clips Found: <span class="value" id="clipsFound">—</span>
+        📹 Clips Fetched: <span class="value" id="clipsFound">—</span>
       </div>
     </div>
 
@@ -509,6 +496,7 @@
     <canvas id="videoCanvas" width="1080" height="1920"></canvas>
   </div>
 
+  <!-- FFmpeg WASM -->
   <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/umd/ffmpeg.js"></script>
 
   <script>
@@ -542,7 +530,7 @@
 
       const typingDiv = document.createElement('div');
       typingDiv.className = 'message assistant';
-      typingDiv.innerHTML = '<span class="spinner"></span>';
+      typingDiv.innerHTML = '<span class="spinner"></span> Thinking...';
       typingDiv.id = 'typingIndicator';
       document.getElementById('chatMessages').appendChild(typingDiv);
 
@@ -572,7 +560,7 @@
       const script = document.getElementById('scriptInput').value.trim();
       const charCount = script.length;
       const estDur = Math.round(charCount / 15);
-      document.getElementById('estDuration').textContent = estDur ? `${estDur}s` : '—';
+      document.getElementById('estDuration').textContent = estDur ? `${estDur}s (max 60s for Shorts)` : '—';
       document.getElementById('sceneCount').textContent = scenes.length || '—';
       const fetched = videoClips.filter(c => c).length;
       document.getElementById('clipsFound').textContent = fetched || '—';
@@ -596,7 +584,7 @@
       const sceneMessages = [
         {
           role: 'system',
-          content: `Extract exactly ${numScenes} visual scene descriptions from this voiceover script. Each scene should be 3-6 words, describing a visual that would match that moment. Output ONLY the scenes, one per line like: "keyword1 keyword2 keyword3". No numbering, no extra text. Make them searchable stock footage terms.`
+          content: `Extract exactly ${numScenes} visual scene descriptions from this voiceover script. Each scene should be 3-6 words, describing a visual that would match that moment. Output ONLY the scenes, one per line like: "keyword1 keyword2 keyword3". No numbering, no extra text. Make them searchable stock footage terms for Pexels.`
         },
         { role: 'user', content: script }
       ];
@@ -645,73 +633,101 @@
       const btn = document.getElementById('btnFetch');
       const status = document.getElementById('status');
       btn.disabled = true;
-      videoClips = [];
+      videoClips = new Array(scenes.length).fill(null);
+      let fetchedCount = 0;
 
       for (let i = 0; i < scenes.length; i++) {
         status.innerHTML = `<span class="spinner"></span> Fetching clip ${i + 1} of ${scenes.length}: "${scenes[i]}"...`;
-        document.getElementById(`dot-${i}`).className = 'status-dot fetched';
-        document.getElementById(`scene-${i}`).classList.add('found');
-
+        
         try {
           const res = await fetch(`/api/pexels/videos?query=${encodeURIComponent(scenes[i])}&per_page=1`);
           const data = await res.json();
 
           if (data.videos?.length > 0) {
             const video = data.videos[0];
-            // Find HD video file
-            const file = video.video_files.find(f => f.width >= 1080 && f.height >= 1920) 
+            const file = video.video_files.find(f => f.width >= 1080) 
                       || video.video_files.find(f => f.width >= 720)
                       || video.video_files[0];
-            videoClips.push({ url: file.link, duration: video.duration, id: video.id });
-          } else {
-            videoClips.push(null);
-            document.getElementById(`dot-${i}`).className = 'status-dot failed';
+            
+            if (file) {
+              videoClips[i] = { url: file.link, duration: video.duration, id: video.id };
+              fetchedCount++;
+              document.getElementById(`dot-${i}`).className = 'status-dot fetched';
+              document.getElementById(`scene-${i}`)?.classList.add('found');
+            }
           }
         } catch (err) {
-          videoClips.push(null);
           document.getElementById(`dot-${i}`).className = 'status-dot failed';
         }
       }
 
-      const fetched = videoClips.filter(c => c).length;
-      status.innerHTML = fetched > 0 
-        ? `✅ ${fetched}/${scenes.length} clips fetched` 
-        : '❌ No clips found';
+      status.innerHTML = fetchedCount > 0 
+        ? `✅ ${fetchedCount}/${scenes.length} clips fetched` 
+        : '❌ No clips found. Try different scene keywords.';
       
-      if (fetched > 0) document.getElementById('btnCreate').disabled = false;
+      if (fetchedCount > 0) {
+        document.getElementById('btnCreate').disabled = false;
+      }
+      
       btn.disabled = false;
       updateStats();
     }
 
-    // ==================== VIDEO RENDERING ====================
-    let ffmpeg = null;
-    let ffmpegLoading = null;
+    // ==================== FFMPEG MANAGEMENT ====================
+    let ffmpegInstance = null;
+    let ffmpegLoadPromise = null;
 
-    async function loadFFmpeg() {
-      if (ffmpeg) return ffmpeg;
-      if (ffmpegLoading) return ffmpegLoading;
-
+    async function getFFmpeg() {
+      if (ffmpegInstance) {
+        return ffmpegInstance;
+      }
+      
+      if (ffmpegLoadPromise) {
+        return ffmpegLoadPromise;
+      }
+      
       const status = document.getElementById('status');
-      status.innerHTML = '<span class="spinner"></span> Loading video engine...';
-
-      ffmpegLoading = (async () => {
-        const { FFmpeg } = FFmpegWASM;
-        ffmpeg = new FFmpeg();
-        await ffmpeg.load();
-        return ffmpeg;
+      status.innerHTML = '<span class="spinner"></span> Loading video engine... (first time ~10s)';
+      
+      ffmpegLoadPromise = (async () => {
+        try {
+          const { FFmpeg } = FFmpegWASM;
+          ffmpegInstance = new FFmpeg();
+          await ffmpegInstance.load();
+          console.log('FFmpeg loaded successfully');
+          return ffmpegInstance;
+        } catch (err) {
+          ffmpegLoadPromise = null;
+          throw err;
+        }
       })();
-
-      return ffmpegLoading;
+      
+      return ffmpegLoadPromise;
     }
 
-    function getTTSDurationSec(text) {
-      const words = text.split(/\s+/).length;
-      return Math.max(3, Math.ceil(words / 2.5));
+    // ==================== TTS WITH EDGE ====================
+    async function generateTTS(text) {
+      const status = document.getElementById('status');
+      status.innerHTML = '<span class="spinner"></span> Generating natural voiceover...';
+      
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+      
+      if (!res.ok) throw new Error('TTS generation failed');
+      
+      return await res.blob();
     }
 
+    // ==================== VIDEO CREATION ====================
     async function createVideo() {
       const validClips = videoClips.filter(c => c);
-      if (!validClips.length) return alert('No video clips to render.');
+      if (!validClips.length) {
+        alert('No video clips to render. Fetch videos first.');
+        return;
+      }
 
       const btn = document.getElementById('btnCreate');
       const status = document.getElementById('status');
@@ -719,29 +735,29 @@
 
       try {
         const script = document.getElementById('scriptInput').value.trim();
-        const totalDuration = getTTSDurationSec(script);
+        const totalDuration = Math.min(60, Math.ceil(script.split(/\s+/).length / 2.5));
         const clipDuration = Math.ceil(totalDuration / validClips.length);
 
-        status.innerHTML = '<span class="spinner"></span> Loading video engine...';
-        const ff = await loadFFmpeg();
+        // Step 1: Get FFmpeg instance
+        const ff = await getFFmpeg();
+        
+        // Step 2: Generate TTS
+        const audioBlob = await generateTTS(script);
+        const audioArray = new Uint8Array(await audioBlob.arrayBuffer());
+        await ff.writeFile('voiceover.mp3', audioArray);
+        status.innerHTML = '<span class="spinner"></span> Voiceover ready...';
 
-        // Generate TTS
-        status.innerHTML = '<span class="spinner"></span> Generating voiceover...';
-        const audioBlob = await generateTTSBlob(script);
-        await ff.writeFile('audio.mp3', new Uint8Array(await audioBlob.arrayBuffer()));
-
-        // Download and trim each clip
+        // Step 3: Download & process each clip
         for (let i = 0; i < validClips.length; i++) {
           status.innerHTML = `<span class="spinner"></span> Processing clip ${i + 1} of ${validClips.length}...`;
           
-          const clipRes = await fetch(validClips[i].url);
-          const clipBlob = await clipRes.blob();
-          const ext = validClips[i].url.split('.').pop().split('?')[0] || 'mp4';
-          const inputName = `clip_${i}.${ext}`;
-          const outputName = `trimmed_${i}.mp4`;
-
-          await ff.writeFile(inputName, new Uint8Array(await clipBlob.arrayBuffer()));
-
+          const response = await fetch(validClips[i].url);
+          const blob = await response.blob();
+          const inputName = `raw_${i}.mp4`;
+          const trimmedName = `clip_${i}.mp4`;
+          
+          await ff.writeFile(inputName, new Uint8Array(await blob.arrayBuffer()));
+          
           await ff.exec([
             '-i', inputName,
             '-t', String(clipDuration),
@@ -751,75 +767,53 @@
             '-crf', '28',
             '-an',
             '-y',
-            outputName
+            trimmedName
           ]);
         }
 
-        // Create concat file
-        let concat = '';
-        for (let i = 0; i < validClips.length; i++) {
-          concat += `file 'trimmed_${i}.mp4'\n`;
-        }
-        await ff.writeFile('concat.txt', concat);
+        // Step 4: Create concat file
+        let concatList = validClips.map((_, i) => `file 'clip_${i}.mp4'`).join('\n');
+        await ff.writeFile('list.txt', concatList);
 
-        // Stitch clips + add audio
-        status.innerHTML = '<span class="spinner"></span> Rendering final video...';
+        // Step 5: Merge everything
+        status.innerHTML = '<span class="spinner"></span> Rendering final video for YouTube Shorts...';
+        
         await ff.exec([
           '-f', 'concat',
           '-safe', '0',
-          '-i', 'concat.txt',
-          '-i', 'audio.mp3',
+          '-i', 'list.txt',
+          '-i', 'voiceover.mp3',
           '-c:v', 'libx264',
-          '-preset', 'fast',
+          '-preset', 'medium',
           '-crf', '23',
           '-c:a', 'aac',
           '-b:a', '128k',
           '-pix_fmt', 'yuv420p',
+          '-movflags', '+faststart',
           '-shortest',
           '-y',
-          'output.mp4'
+          'shorts_output.mp4'
         ]);
 
-        const data = await ff.readFile('output.mp4');
-        const blob = new Blob([data.buffer], { type: 'video/mp4' });
-        const url = URL.createObjectURL(blob);
+        // Step 6: Download
+        const data = await ff.readFile('shorts_output.mp4');
+        const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
+        const url = URL.createObjectURL(videoBlob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'shorts-forge-video.mp4';
+        a.download = `short_${Date.now()}.mp4`;
+        document.body.appendChild(a);
         a.click();
+        document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
-        status.innerHTML = '✅ Video ready! Downloading...';
+        status.innerHTML = '✅ Video downloaded! Ready for YouTube Shorts.';
       } catch (err) {
-        console.error(err);
-        status.innerHTML = `❌ Render error: ${err.message}`;
+        console.error('Video creation error:', err);
+        status.innerHTML = `❌ Error: ${err.message}. Try fewer scenes or reload the page.`;
       }
 
       btn.disabled = false;
-    }
-
-    async function generateTTSBlob(text) {
-      return new Promise((resolve, reject) => {
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 1.0;
-        utterance.pitch = 1.0;
-
-        const audioContext = new AudioContext();
-        const dest = audioContext.createMediaStreamDestination();
-        const mediaRecorder = new MediaRecorder(dest.stream, { mimeType: 'audio/webm' });
-        const chunks = [];
-
-        mediaRecorder.ondataavailable = e => chunks.push(e.data);
-        mediaRecorder.onstop = () => {
-          resolve(new Blob(chunks, { type: 'audio/webm' }));
-          audioContext.close();
-        };
-
-        mediaRecorder.start();
-        utterance.onend = () => mediaRecorder.stop();
-        utterance.onerror = reject;
-        speechSynthesis.speak(utterance);
-      });
     }
   </script>
 </body>
