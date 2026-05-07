@@ -1,225 +1,134 @@
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
-const fs = require('fs');
-const https = require('https');
-const http = require('http');
-const { v4: uuidv4 } = require('uuid');
-const multer = require('multer');
-const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
-const ffmpeg = require('fluent-ffmpeg');
-ffmpeg.setFfmpegPath(ffmpegPath);
+// ==================== STATE ====================
+let scenes = [];
+let sceneTimestamps = [];
+let videoClips = [];
+let recordedAudio = null;
+let videoDuration = 0;
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+// ==================== SCENES (WITH TIMESTAMPS) ====================
+async function extractScenes() {
+  const script = document.getElementById('scriptInput').value.trim();
+  if (!script) return alert('Paste your script first.');
+  const btn = document.getElementById('btnScenes');
+  const status = document.getElementById('status');
+  btn.disabled = true;
+  status.innerHTML = '<span class="spinner"></span> Analyzing script...';
 
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.static(path.join(__dirname)));
+  const charCount = script.length;
+  const estDuration = Math.min(60, charCount / 15);
+  const numScenes = Math.max(2, Math.min(8, Math.ceil(estDuration / 5)));
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 }
-});
-
-const TEMP_DIR = path.join(__dirname, 'temp');
-if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR);
-
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-app.post('/api/chat', async (req, res) => {
   try {
-    const { messages } = req.body;
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const r = await fetch('/api/chat', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: messages,
-        temperature: 0.7
+        messages: [
+          {
+            role: 'system',
+            content: `Split this voiceover script into ${numScenes} visual scenes. For each scene, provide the START TIMESTAMP (in seconds) and 3-5 keyword search terms.
+
+Format exactly like this (one scene per line):
+0 nature forest trees
+5 city traffic cars
+12 office desk work
+
+The timestamps should spread evenly across the estimated ${Math.round(estDuration)} second duration. Output ONLY the formatted lines, nothing else.`
+          },
+          { role: 'user', content: script }
+        ]
       })
     });
-    const data = await response.json();
-    res.json(data);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.get('/api/pexels/videos', async (req, res) => {
-  try {
-    const { query, per_page } = req.query;
-    const response = await fetch(
-      `https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&per_page=${per_page || 1}`,
-      { headers: { 'Authorization': `${process.env.PEXELS_API_KEY}` } }
-    );
-    const data = await response.json();
-    res.json(data);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post('/api/render', upload.single('audio'), async (req, res) => {
-  const renderId = uuidv4();
-  const renderDir = path.join(TEMP_DIR, renderId);
-
-  try {
-    const { clips, duration } = req.body;
-    const clipData = JSON.parse(clips);
-    const audioBuffer = req.file.buffer;
-    const totalDuration = parseFloat(duration);
-
-    if (!clipData || !clipData.length) {
-      return res.status(400).json({ error: 'No video clips provided' });
-    }
-    if (!audioBuffer) {
-      return res.status(400).json({ error: 'No audio provided' });
-    }
-
-    fs.mkdirSync(renderDir);
-    const clipDuration = Math.ceil(totalDuration / clipData.length);
-
-    // Save audio
-    const audioPath = path.join(renderDir, 'voice.webm');
-    fs.writeFileSync(audioPath, audioBuffer);
-
-    // Download and process clips one at a time
-    for (let i = 0; i < clipData.length; i++) {
-      const inputPath = path.join(renderDir, `raw_${i}.mp4`);
-      const outputPath = path.join(renderDir, `clip_${i}.mp4`);
-
-      // Download with timeout
-      await downloadWithTimeout(clipData[i].url, inputPath, 60000);
-
-      // Process clip
-      await new Promise((resolve, reject) => {
-        ffmpeg(inputPath)
-          .outputOptions([
-            '-t', String(clipDuration),
-            '-vf', 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920',
-            '-c:v', 'libx264',
-            '-preset', 'ultrafast',
-            '-crf', '30',
-            '-an'
-          ])
-          .output(outputPath)
-          .on('end', () => {
-            // Delete raw file immediately to save space
-            try { fs.unlinkSync(inputPath); } catch (e) {}
-            resolve();
-          })
-          .on('error', reject)
-          .run();
-      });
-    }
-
-    // Create concat list
-    const concatPath = path.join(renderDir, 'list.txt');
-    const concatContent = clipData.map((_, i) => `file '${path.join(renderDir, `clip_${i}.mp4`)}'`).join('\n');
-    fs.writeFileSync(concatPath, concatContent);
-
-    // Final render
-    const outputPath = path.join(renderDir, 'output.mp4');
-    await new Promise((resolve, reject) => {
-      ffmpeg()
-        .input(concatPath)
-        .inputOptions(['-f', 'concat', '-safe', '0'])
-        .input(audioPath)
-        .outputOptions([
-          '-c:v', 'libx264',
-          '-preset', 'ultrafast',
-          '-crf', '23',
-          '-c:a', 'aac',
-          '-b:a', '128k',
-          '-pix_fmt', 'yuv420p',
-          '-movflags', '+faststart',
-          '-shortest'
-        ])
-        .output(outputPath)
-        .on('end', resolve)
-        .on('error', reject)
-        .run();
-    });
-
-    // Send file
-    const videoBuffer = fs.readFileSync(outputPath);
-    res.set({
-      'Content-Type': 'video/mp4',
-      'Content-Disposition': `attachment; filename="short_${Date.now()}.mp4"`,
-      'Content-Length': videoBuffer.length
-    });
-    res.send(videoBuffer);
-
-    // Cleanup after 2 minutes
-    setTimeout(() => {
-      try { fs.rmSync(renderDir, { recursive: true, force: true }); } catch (e) {}
-    }, 120000);
-
-  } catch (error) {
-    console.error('Render error:', error.message);
-    try { fs.rmSync(renderDir, { recursive: true, force: true }); } catch (e) {}
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Download with timeout
-function downloadWithTimeout(url, dest, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    const protocol = url.startsWith('https') ? https : http;
-    const file = fs.createWriteStream(dest);
-    let timeout;
-
-    const cleanup = () => {
-      clearTimeout(timeout);
-      file.close();
-    };
-
-    timeout = setTimeout(() => {
-      cleanup();
-      try { fs.unlinkSync(dest); } catch (e) {}
-      reject(new Error('Download timeout'));
-    }, timeoutMs);
-
-    const makeRequest = (currentUrl) => {
-      protocol.get(currentUrl, { timeout: 30000 }, (response) => {
-        if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-          return makeRequest(response.headers.location);
+    const d = await r.json();
+    if (d.choices?.[0]) {
+      const lines = d.choices[0].message.content.split('\n').filter(l => l.trim());
+      scenes = [];
+      sceneTimestamps = [];
+      
+      lines.forEach(line => {
+        const parts = line.trim().split(' ');
+        const timestamp = parseFloat(parts[0]);
+        const keywords = parts.slice(1).join(' ');
+        if (!isNaN(timestamp) && keywords) {
+          sceneTimestamps.push(timestamp);
+          scenes.push(keywords);
         }
-
-        response.pipe(file);
-        file.on('finish', () => {
-          cleanup();
-          resolve();
-        });
-      }).on('error', (err) => {
-        cleanup();
-        try { fs.unlinkSync(dest); } catch (e) {}
-        reject(err);
-      }).on('timeout', () => {
-        cleanup();
-        try { fs.unlinkSync(dest); } catch (e) {}
-        reject(new Error('Request timeout'));
       });
-    };
 
-    makeRequest(url);
-  });
+      if (scenes.length === 0) {
+        // Fallback: use old method
+        scenes = lines.map(l => l.replace(/^\d+[\.\)]\s*/, '').replace(/^\d+\.?\d*\s*/, '').trim());
+        sceneTimestamps = [];
+      }
+
+      renderScenes();
+      document.getElementById('btnFetch').disabled = false;
+      status.innerHTML = `✅ ${scenes.length} scenes with timestamps extracted`;
+    }
+  } catch (e) {
+    status.innerHTML = '❌ Failed to extract scenes';
+  }
+  btn.disabled = false;
+  updateStats();
 }
 
-// Cleanup old files on startup
-try {
-  const dirs = fs.readdirSync(TEMP_DIR);
-  dirs.forEach(dir => {
-    try { fs.rmSync(path.join(TEMP_DIR, dir), { recursive: true, force: true }); } catch (e) {}
-  });
-} catch (e) {}
+function renderScenes() {
+  document.getElementById('sceneList').innerHTML = scenes.map((s, i) => {
+    const time = sceneTimestamps[i] !== undefined ? `${Math.floor(sceneTimestamps[i]/60)}:${String(Math.floor(sceneTimestamps[i]%60)).padStart(2,'0')}` : 'auto';
+    return `
+      <div class="scene-item" id="scene-${i}">
+        <span class="scene-num">${i+1}</span>
+        <span>${s}</span>
+        <span style="font-size:10px;color:#888;">${time}</span>
+        <span class="status-dot pending" id="dot-${i}"></span>
+      </div>
+    `;
+  }).join('');
+}
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Shorts Forge running on port ${PORT}`);
-});
+// ==================== SERVER-SIDE RENDER ====================
+async function renderVideo() {
+  const validClips = videoClips.filter(c => c);
+  if (!validClips.length) return alert('No video clips to render.');
+  if (!recordedAudio) return alert('Record your voiceover first.');
+
+  const btn = document.getElementById('btnRender');
+  const status = document.getElementById('status');
+  btn.disabled = true;
+
+  try {
+    status.innerHTML = '<span class="spinner"></span> Uploading to server for rendering...';
+
+    const formData = new FormData();
+    formData.append('audio', recordedAudio, 'voice.webm');
+    formData.append('clips', JSON.stringify(validClips.map(c => ({ url: c.url }))));
+    formData.append('timestamps', JSON.stringify(sceneTimestamps));
+    formData.append('duration', videoDuration.toString());
+
+    const response = await fetch('/api/render', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || 'Server render failed');
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `short_${Date.now()}.mp4`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    status.innerHTML = '✅ Video downloaded! Ready for YouTube Shorts.';
+  } catch (e) {
+    console.error(e);
+    status.innerHTML = `❌ Error: ${e.message}`;
+  }
+  btn.disabled = false;
+}
