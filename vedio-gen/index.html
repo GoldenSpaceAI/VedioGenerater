@@ -430,8 +430,20 @@
       <div class="stat-badge">📹 Clips: <span class="value" id="clipsFound">—</span></div>
       <div class="stat-badge" id="recordingBadge" style="display:none;">🎙️ Recording: <span class="value" id="recordingTime">0s</span></div>
     </div>
+<div class="info-row" style="margin-bottom:8px;">
+  <div class="stat-badge">
+    ⚡ Sec per clip: 
+    <select id="secPerClip" style="background:transparent;border:none;color:var(--gold-light);font-weight:600;font-size:12px;cursor:pointer;outline:none;" onchange="updateStats()">
+      <option value="2">2s</option>
+      <option value="3">3s</option>
+      <option value="5" selected>5s</option>
+      <option value="7">7s</option>
+      <option value="10">10s</option>
+    </select>
+  </div>
+</div>
 
-    <div class="section-label">🎞️ Scene Breakdown</div>
+<div class="section-label">🎞️ Scene Breakdown</div>    <div class="section-label">🎞️ Scene Breakdown</div>
     <div class="scene-list" id="sceneList">
       <div class="scene-item"><span class="scene-num">—</span> Paste your script and generate scenes first</div>
     </div>
