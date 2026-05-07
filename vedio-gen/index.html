@@ -525,7 +525,7 @@
 
       const charCount = script.length;
       const estDur = charCount / 15;
-      const numScenes = Math.max(2, Math.min(8, Math.ceil(estDur / 5)));
+      const numScenes = Math.max(2, Math.min(5, Math.ceil(estDur / 5)));
 
       try {
         const r = await fetch('/api/chat', {
