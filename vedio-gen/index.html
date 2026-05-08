@@ -351,6 +351,18 @@
       animation: recordPulse 1s infinite;
     }
 
+    .btn-sub-toggle {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-sub-toggle.active {
+      background: var(--gold-dark);
+      color: #000;
+      border-color: var(--gold);
+    }
+
     @keyframes recordPulse {
       0%, 100% { box-shadow: 0 0 0 0 rgba(192, 57, 43, 0.6); }
       50% { box-shadow: 0 0 0 12px rgba(192, 57, 43, 0); }
@@ -396,14 +408,14 @@
       border-radius: 8px;
       padding: 12px 16px;
       margin-top: 8px;
-      max-height: 200px;
+      max-height: 250px;
       overflow-y: auto;
     }
 
     .subtitle-preview .sub-line {
       display: flex;
       gap: 12px;
-      padding: 4px 0;
+      padding: 5px 0;
       font-size: 11px;
       color: #aaa;
       border-bottom: 1px solid #1a1a1a;
@@ -412,11 +424,20 @@
     .sub-line .sub-time {
       color: var(--gold);
       font-family: monospace;
-      min-width: 70px;
+      min-width: 75px;
+      font-size: 10px;
     }
 
     .sub-line .sub-text {
       color: #ddd;
+      line-height: 1.4;
+    }
+
+    .sub-disabled-note {
+      color: #555;
+      font-style: italic;
+      padding: 10px;
+      text-align: center;
     }
 
     @media (max-width: 800px) {
@@ -451,26 +472,29 @@
     </div>
 
     <div class="section-label">📝 Your Script</div>
-    <textarea id="scriptInput" placeholder="Paste your voiceover script here...&#10;&#10;1. AI reads your script and extracts scenes&#10;2. Subtitles are auto-generated from your words&#10;3. Record your voiceover&#10;4. Server burns subtitles into the video"></textarea>
+    <textarea id="scriptInput" placeholder="Paste your voiceover script here...&#10;&#10;1. AI reads your script and extracts scenes&#10;2. Subtitles auto-generated from your words&#10;3. Record your voiceover&#10;4. Server burns subtitles into the video (toggle ON/OFF below)"></textarea>
 
     <div class="info-row">
       <div class="stat-badge">🎬 Scenes: <span class="value" id="sceneCount">—</span></div>
-      <div class="stat-badge">⏱ Est. Duration: <span class="value" id="estDuration">—</span></div>
+      <div class="stat-badge">⏱ Duration: <span class="value" id="estDuration">—</span></div>
       <div class="stat-badge">📹 Clips: <span class="value" id="clipsFound">—</span></div>
-      <div class="stat-badge">📝 Subtitles: <span class="value" id="subCount">—</span></div>
-      <div class="stat-badge" id="recordingBadge" style="display:none;">🎙️ Recording: <span class="value" id="recordingTime">0s</span></div>
+      <div class="stat-badge">📝 Subs: <span class="value" id="subCount">—</span></div>
+      <div class="stat-badge" id="recordingBadge" style="display:none;">🎙️ Rec: <span class="value" id="recordingTime">0s</span></div>
     </div>
     
     <div class="info-row" style="margin-bottom:8px;">
       <div class="stat-badge">
         ⚡ Sec per clip: 
         <select id="secPerClip" style="background:transparent;border:none;color:var(--gold-light);font-weight:600;font-size:12px;cursor:pointer;outline:none;" onchange="updateStats()">
-          <option value="2">2s</option>
           <option value="3">3s</option>
           <option value="5" selected>5s</option>
           <option value="7">7s</option>
           <option value="10">10s</option>
         </select>
+      </div>
+      <div class="stat-badge">
+        💬 Subtitles:
+        <button class="btn btn-sub-toggle active" id="btnSubToggle" onclick="toggleSubtitles()" style="padding:6px 14px;font-size:11px;margin-left:4px;">ON</button>
       </div>
     </div>
 
@@ -481,14 +505,14 @@
 
     <div class="section-label">💬 Subtitles Preview</div>
     <div class="subtitle-preview" id="subtitlePreview">
-      <div style="color:#555;font-size:11px;">Subtitles will appear here after extracting scenes...</div>
+      <div class="sub-disabled-note">Subtitles will appear here after extracting scenes...</div>
     </div>
 
     <div class="btn-row">
-      <button class="btn btn-primary" id="btnScenes" onclick="extractScenes()">🔍 Extract Scenes + Subtitles</button>
+      <button class="btn btn-primary" id="btnScenes" onclick="extractScenes()">🔍 Extract Scenes</button>
       <button class="btn btn-primary" id="btnFetch" onclick="fetchVideos()" disabled>📥 Fetch Videos</button>
-      <button class="btn btn-record" id="btnRecord" onclick="startRecording()" disabled>🎙️ Record Voiceover</button>
-      <button class="btn btn-primary" id="btnRender" onclick="renderVideo()" disabled>🎬 Render Video</button>
+      <button class="btn btn-record" id="btnRecord" onclick="startRecording()" disabled>🎙️ Record</button>
+      <button class="btn btn-primary" id="btnRender" onclick="renderVideo()" disabled>🎬 Render</button>
     </div>
 
     <div class="status-message" id="status"></div>
@@ -556,6 +580,7 @@
     let recordedAudio = null;
     let videoDuration = 0;
     let subtitles = [];
+    let subtitlesEnabled = true;
 
     function updateStats() {
       const script = document.getElementById('scriptInput').value.trim();
@@ -565,48 +590,59 @@
       document.getElementById('estDuration').textContent = dur ? `${dur}s (max 60s)` : '—';
       document.getElementById('sceneCount').textContent = scenes.length || '—';
       document.getElementById('clipsFound').textContent = videoClips.filter(c=>c).length || '—';
-      document.getElementById('subCount').textContent = subtitles.length || '—';
+      document.getElementById('subCount').textContent = subtitlesEnabled ? (subtitles.length || '—') : 'OFF';
     }
 
     document.getElementById('scriptInput').addEventListener('input', updateStats);
 
-    // ==================== GENERATE SUBTITLES FROM SCRIPT ====================
+    // ==================== SUBTITLE TOGGLE ====================
+    function toggleSubtitles() {
+      subtitlesEnabled = !subtitlesEnabled;
+      const btn = document.getElementById('btnSubToggle');
+      if (subtitlesEnabled) {
+        btn.textContent = 'ON';
+        btn.classList.add('active');
+      } else {
+        btn.textContent = 'OFF';
+        btn.classList.remove('active');
+      }
+      renderSubtitlePreview();
+      updateStats();
+    }
+
+    // ==================== GENERATE SUBTITLES (Max 5 sec per chunk) ====================
     function generateSubtitles(script, numClips, totalDuration) {
+      if (!subtitlesEnabled) return [];
+      
       const words = script.split(/\s+/).filter(w => w.length > 0);
+      if (words.length === 0) return [];
+      
+      const MAX_CHUNK_DURATION = 5; // Max 5 seconds per subtitle
       const clipDuration = totalDuration / numClips;
       const subtitles = [];
       
-      const wordsPerClip = Math.ceil(words.length / numClips);
+      // Calculate how many words fit in ~5 seconds
+      // Average speaking rate: ~2-3 words per second
+      const wordsPerChunk = Math.floor(MAX_CHUNK_DURATION * 2.5);
       
-      for (let i = 0; i < numClips; i++) {
-        const start = i * wordsPerClip;
-        const end = Math.min(start + wordsPerClip, words.length);
-        const clipWords = words.slice(start, end);
+      let currentTime = 0;
+      let wordIndex = 0;
+      
+      while (wordIndex < words.length && currentTime < totalDuration) {
+        const chunkWords = words.slice(wordIndex, wordIndex + wordsPerChunk);
+        if (chunkWords.length === 0) break;
         
-        if (clipWords.length === 0) continue;
+        const text = chunkWords.join(' ');
+        const chunkDuration = Math.min(MAX_CHUNK_DURATION, totalDuration - currentTime);
         
-        // Split clip words into 2 chunks for smoother display
-        const mid = Math.ceil(clipWords.length / 2);
+        subtitles.push({
+          text: text,
+          startTime: currentTime,
+          endTime: currentTime + chunkDuration
+        });
         
-        // First half
-        const firstHalf = clipWords.slice(0, mid).join(' ');
-        if (firstHalf) {
-          subtitles.push({
-            text: firstHalf,
-            startTime: i * clipDuration,
-            endTime: i * clipDuration + clipDuration / 2
-          });
-        }
-        
-        // Second half
-        const secondHalf = clipWords.slice(mid).join(' ');
-        if (secondHalf) {
-          subtitles.push({
-            text: secondHalf,
-            startTime: i * clipDuration + clipDuration / 2,
-            endTime: (i + 1) * clipDuration
-          });
-        }
+        wordIndex += wordsPerChunk;
+        currentTime += chunkDuration;
       }
       
       return subtitles;
@@ -614,14 +650,20 @@
 
     function renderSubtitlePreview() {
       const container = document.getElementById('subtitlePreview');
+      
+      if (!subtitlesEnabled) {
+        container.innerHTML = '<div class="sub-disabled-note">🚫 Subtitles are OFF — Toggle ON to enable</div>';
+        return;
+      }
+      
       if (subtitles.length === 0) {
-        container.innerHTML = '<div style="color:#555;font-size:11px;">No subtitles generated yet...</div>';
+        container.innerHTML = '<div class="sub-disabled-note">No subtitles yet. Extract scenes first.</div>';
         return;
       }
       
       container.innerHTML = subtitles.map(s => `
         <div class="sub-line">
-          <span class="sub-time">${s.startTime.toFixed(1)}s - ${s.endTime.toFixed(1)}s</span>
+          <span class="sub-time">${s.startTime.toFixed(0)}s–${s.endTime.toFixed(0)}s</span>
           <span class="sub-text">${s.text}</span>
         </div>
       `).join('');
@@ -634,7 +676,7 @@
       const btn = document.getElementById('btnScenes');
       const status = document.getElementById('status');
       btn.disabled = true;
-      status.innerHTML = '<span class="spinner"></span> Analyzing script & generating subtitles...';
+      status.innerHTML = '<span class="spinner"></span> Analyzing...';
 
       const charCount = script.length;
       const estDuration = Math.min(60, Math.ceil(charCount / 15));
@@ -650,16 +692,7 @@
             messages: [
               {
                 role: 'system',
-                content: `Read this script and extract ${numScenes} video scenes that MATCH what's being described. 
-
-IMPORTANT RULES:
-- Actually READ the script content
-- If script is about octopuses → use "cute octopus swimming", "octopus close up", "ocean underwater"
-- If script is about cars → use "sports car driving", "city highway traffic"
-- If script is about cooking → use "chef cooking kitchen", "food preparation"
-- Match the EXACT subject and mood of the script
-- Output ONE scene per line, no numbers, no bullets, no extra text
-- Each line should be 2-5 words, highly searchable on stock footage sites`
+                content: `Read this script and extract ${numScenes} video scenes that MATCH the content. Output ONE scene keyword per line (2-5 words). No numbers, no bullets. Match the actual subject of the script.`
               },
               { role: 'user', content: `Extract ${numScenes} scenes from:\n\n${script}` }
             ]
@@ -668,33 +701,32 @@ IMPORTANT RULES:
         const d = await r.json();
         if (d.choices?.[0]) {
           const content = d.choices[0].message.content;
-          console.log('AI Scene Response:', content);
+          console.log('AI Scenes:', content);
           
           const lines = content.split('\n')
             .map(l => l.replace(/^\d+[\.\)]\s*/, '').replace(/^[-*]\s*/, '').trim())
             .filter(l => l.length > 0 && l.length < 100);
           
           scenes = lines.slice(0, numScenes);
-          
-          while (scenes.length < numScenes) {
-            scenes.push('beautiful nature scenery');
-          }
+          while (scenes.length < numScenes) scenes.push('nature scenery');
           
           const clipDuration = parseInt(document.getElementById('secPerClip').value) || 5;
           sceneTimestamps = scenes.map((_, i) => i * clipDuration);
           
-          // ===== GENERATE SUBTITLES =====
+          // Generate subtitles
           subtitles = generateSubtitles(script, scenes.length, totalDuration);
-          console.log('Generated subtitles:', subtitles);
+          console.log('Subtitles:', subtitles.length, 'chunks');
           
           renderScenes();
           renderSubtitlePreview();
           document.getElementById('btnFetch').disabled = false;
-          status.innerHTML = `✅ ${scenes.length} scenes + ${subtitles.length} subtitle chunks generated (~${clipDuration}s each)`;
+          
+          const subMsg = subtitlesEnabled ? ` + ${subtitles.length} subtitles` : ' (subtitles OFF)';
+          status.innerHTML = `✅ ${scenes.length} scenes${subMsg}`;
         }
       } catch (e) {
-        console.error('Scene error:', e);
-        status.innerHTML = '❌ Failed to extract scenes';
+        console.error('Error:', e);
+        status.innerHTML = '❌ Failed';
       }
       btn.disabled = false;
       updateStats();
@@ -704,21 +736,15 @@ IMPORTANT RULES:
       document.getElementById('sceneList').innerHTML = scenes.map((s, i) => `
         <div class="scene-item found" id="scene-${i}">
           <span class="scene-num">${i+1}</span>
-          <input 
-            type="text" 
-            value="${s}" 
-            id="keyword-${i}" 
+          <input type="text" value="${s}" id="keyword-${i}" 
             style="flex:1;background:transparent;border:none;color:#ccc;font-size:12px;outline:none;padding:4px 0;"
-            onchange="updateKeyword(${i}, this.value)"
-          >
+            onchange="updateKeyword(${i}, this.value)">
           <span class="status-dot pending" id="dot-${i}"></span>
         </div>
       `).join('');
     }
 
-    function updateKeyword(index, value) {
-      scenes[index] = value.trim();
-    }
+    function updateKeyword(index, value) { scenes[index] = value.trim(); }
 
     // ==================== PEXELS ====================
     async function fetchVideos() {
@@ -730,7 +756,7 @@ IMPORTANT RULES:
       let count = 0;
 
       for (let i = 0; i < scenes.length; i++) {
-        status.innerHTML = `<span class="spinner"></span> Fetching clip ${i+1}/${scenes.length}: "${scenes[i]}"...`;
+        status.innerHTML = `<span class="spinner"></span> Clip ${i+1}/${scenes.length}: "${scenes[i]}"...`;
         try {
           const r = await fetch(`/api/pexels/videos?query=${encodeURIComponent(scenes[i])}&per_page=1`);
           const d = await r.json();
@@ -741,7 +767,6 @@ IMPORTANT RULES:
               videoClips[i] = { url: file.link, duration: video.duration, id: video.id };
               count++;
               document.getElementById(`dot-${i}`).className = 'status-dot fetched';
-              document.getElementById(`scene-${i}`)?.classList.add('found');
             }
           }
         } catch (e) {
@@ -749,7 +774,7 @@ IMPORTANT RULES:
         }
       }
 
-      status.innerHTML = count > 0 ? `✅ ${count}/${scenes.length} clips fetched` : '❌ No clips found';
+      status.innerHTML = count > 0 ? `✅ ${count}/${scenes.length} clips` : '❌ No clips found';
       if (count > 0) document.getElementById('btnRecord').disabled = false;
       btn.disabled = false;
       updateStats();
@@ -762,8 +787,7 @@ IMPORTANT RULES:
     let recordingSeconds = 0;
 
     async function startRecording() {
-      if (!videoDuration) return alert('No video duration calculated. Paste a script first.');
-
+      if (!videoDuration) return alert('Paste a script first.');
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         
@@ -784,7 +808,7 @@ IMPORTANT RULES:
           recordedAudio = new Blob(recordingChunks, { type: 'audio/webm' });
           stream.getTracks().forEach(t => t.stop());
           document.getElementById('btnRender').disabled = false;
-          document.getElementById('status').innerHTML = `✅ Recording complete! (${recordingSeconds}s)`;
+          document.getElementById('status').innerHTML = `✅ Recorded (${recordingSeconds}s)`;
         };
 
         mediaRecorder.start();
@@ -801,13 +825,11 @@ IMPORTANT RULES:
         recordingTimer = setInterval(() => {
           recordingSeconds++;
           document.getElementById('recordingTime').textContent = `${recordingSeconds}s`;
-          if (recordingSeconds >= videoDuration) {
-            stopRecording();
-          }
+          if (recordingSeconds >= videoDuration) stopRecording();
         }, 1000);
 
       } catch (e) {
-        document.getElementById('status').innerHTML = '❌ Microphone access denied. Please allow microphone.';
+        document.getElementById('status').innerHTML = '❌ Microphone denied';
       }
     }
 
@@ -815,33 +837,34 @@ IMPORTANT RULES:
       if (mediaRecorder && mediaRecorder.state === 'recording') {
         mediaRecorder.stop();
         clearInterval(recordingTimer);
-        
         const btn = document.getElementById('btnRecord');
-        btn.textContent = '🎙️ Record Voiceover';
+        btn.textContent = '🎙️ Record';
         btn.classList.remove('recording');
         btn.onclick = startRecording;
         document.getElementById('recordingBadge').style.display = 'none';
       }
     }
 
-    // ==================== RENDER WITH SUBTITLES ====================
+    // ==================== RENDER ====================
     async function renderVideo() {
       const validClips = videoClips.filter(c => c);
-      if (!validClips.length) return alert('No video clips to render.');
-      if (!recordedAudio) return alert('Record your voiceover first.');
+      if (!validClips.length) return alert('No clips.');
+      if (!recordedAudio) return alert('Record first.');
 
       const btn = document.getElementById('btnRender');
       const status = document.getElementById('status');
       btn.disabled = true;
+      
+      const subsToSend = subtitlesEnabled ? subtitles : [];
 
       try {
-        status.innerHTML = '<span class="spinner"></span> Rendering with subtitles...';
+        status.innerHTML = `<span class="spinner"></span> Rendering${subsToSend.length ? ' with subtitles' : ' (no subs)'}...`;
         
         const formData = new FormData();
         formData.append('audio', recordedAudio, 'voice.webm');
         formData.append('clips', JSON.stringify(validClips.map(c => ({ url: c.url }))));
         formData.append('duration', videoDuration.toString());
-        formData.append('subtitles', JSON.stringify(subtitles));
+        formData.append('subtitles', JSON.stringify(subsToSend));
 
         const response = await fetch('/api/render', {
           method: 'POST',
@@ -850,23 +873,23 @@ IMPORTANT RULES:
 
         if (!response.ok) {
           const err = await response.json();
-          throw new Error(err.error || 'Server render failed');
+          throw new Error(err.error || 'Render failed');
         }
 
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `short_subtitled_${Date.now()}.mp4`;
+        a.download = `short_${Date.now()}.mp4`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
-        status.innerHTML = '✅ Video with subtitles downloaded! Ready for YouTube!';
+        status.innerHTML = `✅ Done!${subsToSend.length ? ' Subtitles burned in.' : ''}`;
       } catch (e) {
         console.error(e);
-        status.innerHTML = `❌ Error: ${e.message}`;
+        status.innerHTML = `❌ ${e.message}`;
       }
       btn.disabled = false;
     }
