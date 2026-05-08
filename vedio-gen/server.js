@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
@@ -7,7 +8,7 @@ const { spawn } = require('child_process');
 const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
 
-// Get FFmpeg path from the installer package
+// Get FFmpeg path
 let ffmpegPath;
 try {
   ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
@@ -20,6 +21,7 @@ try {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname)));
 
@@ -141,6 +143,7 @@ function downloadFile(url, dest) {
   });
 }
 
+// Main render endpoint
 app.post('/api/render', upload.single('audio'), async (req, res) => {
   const renderId = uuidv4();
   const renderDir = path.join(TEMP_DIR, renderId);
@@ -148,7 +151,6 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
   try {
     const { clips, timestamps, duration } = req.body;
     const clipData = JSON.parse(clips);
-    const timestampData = JSON.parse(timestamps || '[]');
     const audioBuffer = req.file.buffer;
     const totalDuration = parseFloat(duration);
     
@@ -160,99 +162,100 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     }
     
     fs.mkdirSync(renderDir);
-    console.log(`Starting render ${renderId}, ${clipData.length} clips`);
+    console.log(`Starting render ${renderId} with ${clipData.length} clips, duration ${totalDuration}s`);
     
     // Save audio
     const audioPath = path.join(renderDir, 'voice.webm');
     fs.writeFileSync(audioPath, audioBuffer);
     
-    // Calculate durations
-    const clipDurations = [];
-    if (timestampData.length > 0) {
-      for (let i = 0; i < clipData.length; i++) {
-        const startTime = timestampData[i] || 0;
-        const endTime = (timestampData[i + 1] !== undefined) ? timestampData[i + 1] : totalDuration;
-        clipDurations.push(Math.max(1, endTime - startTime));
-      }
-    } else {
-      const equalDur = Math.ceil(totalDuration / clipData.length);
-      for (let i = 0; i < clipData.length; i++) {
-        clipDurations.push(equalDur);
-      }
-    }
+    // Calculate clip duration (equal split for simplicity and memory safety)
+    const clipDuration = Math.ceil(totalDuration / clipData.length);
     
-    // Process each clip
+    // Process clips one at a time
+    const trimmedPaths = [];
     for (let i = 0; i < clipData.length; i++) {
-      const rawPath = path.join(renderDir, `raw_${i}.mp4`);
-      const trimmedPath = path.join(renderDir, `clip_${i}.mp4`);
+      const rawPath = path.join(renderDir, `r${i}.mp4`);
+      const trimmedPath = path.join(renderDir, `t${i}.mp4`);
+      trimmedPaths.push(trimmedPath);
       
       console.log(`Clip ${i+1}/${clipData.length}: downloading...`);
       await downloadFile(clipData[i].url, rawPath);
       
-      console.log(`Clip ${i+1}/${clipData.length}: trimming to ${clipDurations[i]}s...`);
+      console.log(`Clip ${i+1}/${clipData.length}: trimming to ${clipDuration}s...`);
       await runFfmpeg([
         '-i', rawPath,
-        '-t', String(clipDurations[i]),
+        '-t', String(clipDuration),
         '-vf', 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920',
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
-        '-crf', '30',
+        '-crf', '35',
         '-an',
         '-y',
         trimmedPath
       ]);
       
-      // Delete raw
+      // Delete raw immediately
       try { fs.unlinkSync(rawPath); } catch (e) {}
       console.log(`Clip ${i+1} done`);
     }
     
-    // Concat list
+    // Create concat list
     const listPath = path.join(renderDir, 'list.txt');
-    let listContent = '';
-    for (let i = 0; i < clipData.length; i++) {
-      listContent += `file '${path.join(renderDir, `clip_${i}.mp4`)}'\n`;
-    }
-    fs.writeFileSync(listPath, listContent);
+    fs.writeFileSync(listPath, trimmedPaths.map(p => `file '${p}'`).join('\n'));
     
-    // Final render — two steps to save memory
-const outputPath = path.join(renderDir, 'output.mp4');
-const silentPath = path.join(renderDir, 'silent.mp4');
-
-// Step 1: Stitch clips WITHOUT audio (uses less memory)
-console.log('Final render — step 1: stitching clips...');
-await runFfmpeg([
-  '-f', 'concat',
-  '-safe', '0',
-  '-i', listPath,
-  '-c:v', 'libx264',
-  '-preset', 'ultrafast',
-  '-crf', '23',
-  '-pix_fmt', 'yuv420p',
-  '-an',
-  '-y',
-  silentPath
-]);
-
-// Delete individual clips to free memory
-for (let i = 0; i < clipData.length; i++) {
-  try { fs.unlinkSync(path.join(renderDir, `clip_${i}.mp4`)); } catch (e) {}
-}
-
-// Step 2: Add audio to the stitched video
-console.log('Final render — step 2: adding audio...');
-await runFfmpeg([
-  '-i', silentPath,
-  '-i', audioPath,
-  '-c:v', 'copy',
-  '-c:a', 'aac',
-  '-b:a', '128k',
-  '-movflags', '+faststart',
-  '-shortest',
-  '-y',
-  outputPath
-]);
-    // Cleanup after 5 min
+    // Step 1: Stitch video only (no audio, saves memory)
+    const silentPath = path.join(renderDir, 'silent.mp4');
+    console.log('Stitching video...');
+    await runFfmpeg([
+      '-f', 'concat',
+      '-safe', '0',
+      '-i', listPath,
+      '-c:v', 'libx264',
+      '-preset', 'ultrafast',
+      '-crf', '28',
+      '-pix_fmt', 'yuv420p',
+      '-an',
+      '-y',
+      silentPath
+    ]);
+    
+    // Delete trimmed clips and list to free memory
+    for (const p of trimmedPaths) {
+      try { fs.unlinkSync(p); } catch (e) {}
+    }
+    try { fs.unlinkSync(listPath); } catch (e) {}
+    
+    // Step 2: Add audio (copy video, no re-encoding = minimal memory)
+    const outputPath = path.join(renderDir, 'output.mp4');
+    console.log('Adding audio...');
+    await runFfmpeg([
+      '-i', silentPath,
+      '-i', audioPath,
+      '-c:v', 'copy',
+      '-c:a', 'aac',
+      '-b:a', '96k',
+      '-movflags', '+faststart',
+      '-shortest',
+      '-y',
+      outputPath
+    ]);
+    
+    // Delete silent video
+    try { fs.unlinkSync(silentPath); } catch (e) {}
+    
+    console.log('Sending file...');
+    const stat = fs.statSync(outputPath);
+    console.log('Output size:', (stat.size / 1024 / 1024).toFixed(2), 'MB');
+    
+    const videoBuffer = fs.readFileSync(outputPath);
+    res.set({
+      'Content-Type': 'video/mp4',
+      'Content-Disposition': `attachment; filename="short_${Date.now()}.mp4"`,
+      'Content-Length': videoBuffer.length
+    });
+    res.send(videoBuffer);
+    
+    // Cleanup after 5 minutes
     setTimeout(() => {
       try { fs.rmSync(renderDir, { recursive: true, force: true }); } catch (e) {}
     }, 300000);
@@ -264,7 +267,7 @@ await runFfmpeg([
   }
 });
 
-// Clean old temp on startup
+// Clean old temp files on startup
 try {
   const dirs = fs.readdirSync(TEMP_DIR);
   for (const dir of dirs) {
