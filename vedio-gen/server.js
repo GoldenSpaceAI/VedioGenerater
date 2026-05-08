@@ -36,11 +36,16 @@ if (!fs.existsSync(TEMP_DIR)) {
   console.log('Temp directory created:', TEMP_DIR);
 }
 
-// Find a font file for subtitles
-const FONT_PATH = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
+// Find available font
+let FONT_PATH = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
 if (!fs.existsSync(FONT_PATH)) {
-  console.log('⚠️ Font not found at', FONT_PATH, '- subtitles may not render correctly');
+  FONT_PATH = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
+  if (!fs.existsSync(FONT_PATH)) {
+    console.log('⚠️ No font found - subtitles disabled');
+    FONT_PATH = '';
+  }
 }
+console.log('🔤 Font path:', FONT_PATH, fs.existsSync(FONT_PATH) ? '✅' : '❌');
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
@@ -85,7 +90,11 @@ app.get('/api/pexels/videos', async (req, res) => {
 // Run FFmpeg command
 function runFfmpeg(args) {
   return new Promise((resolve, reject) => {
-    console.log('🎬 FFmpeg:', args.join(' ').substring(0, 250) + '...');
+    // Log the full command for debugging
+    const cmdStr = args.join(' ');
+    console.log('🎬 FFmpeg cmd length:', cmdStr.length, 'chars');
+    console.log('🎬 First 300 chars:', cmdStr.substring(0, 300));
+    
     const proc = spawn(ffmpegPath, args);
     let stderr = '';
     
@@ -97,7 +106,7 @@ function runFfmpeg(args) {
       if (code === 0) {
         resolve();
       } else {
-        console.error('❌ FFmpeg error (last 500 chars):', stderr.slice(-500));
+        console.error('❌ FFmpeg stderr (last 800 chars):', stderr.slice(-800));
         reject(new Error(`FFmpeg error (code ${code})`));
       }
     });
@@ -155,35 +164,82 @@ function downloadFile(url, dest) {
   });
 }
 
-// Escape text for FFmpeg drawtext filter
-function escapeDrawtext(text) {
-  return text
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'")
-    .replace(/:/g, '\\:')
-    .replace(/%/g, '\\%')
-    .replace(/{/g, '\\{')
-    .replace(/}/g, '\\}')
-    .replace(/\n/g, ' ');
+// SAFE text escaping for FFmpeg drawtext
+function safeText(text) {
+  if (!text) return ' ';
+  
+  // Remove or replace ALL problematic characters
+  let cleaned = text
+    // Remove smart quotes and special unicode
+    .replace(/[\u2018\u2019]/g, "'")     // Smart single quotes → regular
+    .replace(/[\u201C\u201D]/g, '"')     // Smart double quotes → regular
+    .replace(/[\u2013\u2014]/g, '-')     // Em/en dashes → hyphen
+    .replace(/[\u2026]/g, '...')          // Ellipsis
+    .replace(/[\u00A0]/g, ' ')           // Non-breaking space
+    .replace(/[\u200B]/g, '')            // Zero-width space
+    
+    // Remove all characters except: letters, numbers, basic punctuation, spaces
+    .replace(/[^\w\s.,!?;:'"()\-\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/g, '')
+    
+    // Replace problematic FFmpeg characters with safe alternatives
+    .replace(/,/g, ' ')      // Commas break FFmpeg filter parsing → use space
+    .replace(/;/g, ' ')      // Semicolons → space
+    .replace(/\[/g, '(')     // Brackets → parentheses
+    .replace(/\]/g, ')')
+    .replace(/{/g, '(')
+    .replace(/}/g, ')')
+    .replace(/%/g, ' percent')
+    .replace(/:/g, ' -')     // Colons → dash
+    .replace(/\\/g, '')      // Remove backslashes
+    .replace(/"/g, "'")      // Double quotes → single quotes
+    .replace(/'/g, '')       // Remove ALL quotes (safest)
+    .replace(/\n/g, ' ')     // Newlines → space
+    .replace(/\r/g, '')      // Remove carriage returns
+    .replace(/\t/g, ' ')     // Tabs → space
+    
+    // Collapse multiple spaces
+    .replace(/\s+/g, ' ')
+    
+    // Trim
+    .trim();
+  
+  // Limit length to prevent FFmpeg issues
+  if (cleaned.length > 70) {
+    cleaned = cleaned.substring(0, 67) + '...';
+  }
+  
+  // If completely empty after cleaning, return space
+  return cleaned || ' ';
 }
 
-// Build drawtext filter for subtitles
+// Build subtitle filter for a clip
 function buildSubtitleFilter(subtitles, clipStart, clipEnd) {
+  if (!FONT_PATH || !subtitles || subtitles.length === 0) return '';
+  
+  // Find subtitles that fall within this clip's time range
   const clipSubtitles = subtitles.filter(s => {
-    return s.startTime >= clipStart && s.startTime < clipEnd;
+    const sStart = parseFloat(s.startTime);
+    const cStart = parseFloat(clipStart);
+    const cEnd = parseFloat(clipEnd);
+    return sStart >= cStart && sStart < cEnd;
   });
   
   if (clipSubtitles.length === 0) return '';
   
   // Combine all subtitle text for this clip
-  const text = clipSubtitles.map(s => s.text).join(' ');
-  const escaped = escapeDrawtext(text);
+  const rawText = clipSubtitles.map(s => s.text).join(' ');
+  const text = safeText(rawText);
   
-  // Centered subtitle with background box
-  return `,drawtext=text='${escaped}':fontcolor=white:fontsize=48:box=1:boxcolor=black@0.6:boxborderw=10:x=(w-text_w)/2:y=(h-text_h)/2:fontfile=${FONT_PATH}`;
+  if (!text || text.length < 2) return '';
+  
+  // Build a simple, safe drawtext filter
+  // Using single quotes around the text with escaped special chars
+  const escapedText = text.replace(/'/g, "'\\''");
+  
+  return `,drawtext=text='${escapedText}':fontcolor=white:fontsize=44:box=1:boxcolor=black@0.6:boxborderw=8:x=(w-text_w)/2:y=(h-text_h)/2:fontfile='${FONT_PATH}'`;
 }
 
-// ==================== YOUTUBE-COMPATIBLE RENDER WITH SUBTITLES ====================
+// ==================== YOUTUBE-COMPATIBLE RENDER ====================
 app.post('/api/render', upload.single('audio'), async (req, res) => {
   const renderId = uuidv4();
   const renderDir = path.join(TEMP_DIR, renderId);
@@ -232,23 +288,25 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
       const clipStart = i * clipDuration;
       const clipEnd = (i + 1) * clipDuration;
       
-      // Build subtitle filter for this clip
+      // Build subtitle filter
       const subtitleFilter = buildSubtitleFilter(subtitleData, clipStart, clipEnd);
       
       // Download
       console.log(`  ⬇️ Downloading...`);
       await downloadFile(clipsToProcess[i].url, rawPath);
       
-      // Build video filter
+      // Build base video filter
       let videoFilter = 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920';
+      
+      // Add subtitle filter if available
       if (subtitleFilter) {
         videoFilter += subtitleFilter;
-        console.log(`  📝 Subtitles added for clip ${i+1}`);
+        console.log(`  📝 Adding subtitle filter`);
+      } else {
+        console.log(`  ⚠️ No subtitles for this clip`);
       }
       
-      // Trim with subtitles
-      console.log(`  ✂️ Trimming to ${clipDuration}s...`);
-      
+      // Build FFmpeg args
       const ffmpegArgs = [
         '-i', rawPath,
         '-t', String(clipDuration),
@@ -266,6 +324,8 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
         trimmedPath
       ];
       
+      // Trim with subtitles
+      console.log(`  ✂️ Trimming to ${clipDuration}s...`);
       await runFfmpeg(ffmpegArgs);
       
       // Delete raw immediately
@@ -289,7 +349,7 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
       '-f', 'concat',
       '-safe', '0',
       '-i', listPath,
-      '-c:v', 'copy',  // Copy to preserve subtitles
+      '-c:v', 'copy',
       '-an',
       '-y',
       silentVideo
@@ -310,7 +370,7 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     await runFfmpeg([
       '-i', silentVideo,
       '-i', audioPath,
-      '-c:v', 'copy',              // Preserve video with subtitles
+      '-c:v', 'copy',
       '-c:a', 'aac',
       '-b:a', '192k',
       '-ar', '44100',
@@ -338,7 +398,7 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     
     res.set({
       'Content-Type': 'video/mp4',
-      'Content-Disposition': `attachment; filename="shorts_subtitled_${Date.now()}.mp4"`,
+      'Content-Disposition': `attachment; filename="shorts_${Date.now()}.mp4"`,
       'Content-Length': stat.size
     });
     
@@ -383,5 +443,4 @@ try {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`💾 Memory: ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)}MB`);
-  console.log(`🔤 Font path: ${FONT_PATH} (${fs.existsSync(FONT_PATH) ? 'Found' : 'NOT FOUND'})`);
 });
