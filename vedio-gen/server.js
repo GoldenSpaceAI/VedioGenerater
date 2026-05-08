@@ -168,7 +168,7 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     const audioPath = path.join(renderDir, 'voice.webm');
     fs.writeFileSync(audioPath, audioBuffer);
     
-    // Calculate clip duration (equal split for simplicity and memory safety)
+    // Calculate clip duration (equal split)
     const clipDuration = Math.ceil(totalDuration / clipData.length);
     
     // Process clips one at a time
@@ -225,7 +225,7 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     }
     try { fs.unlinkSync(listPath); } catch (e) {}
     
-    // Step 2: Add audio (copy video, no re-encoding = minimal memory)
+    // Step 2: Add audio (copy video stream = zero memory)
     const outputPath = path.join(renderDir, 'output.mp4');
     console.log('Adding audio...');
     await runFfmpeg([
@@ -243,22 +243,30 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     // Delete silent video
     try { fs.unlinkSync(silentPath); } catch (e) {}
     
-    console.log('Sending file...');
+    // STREAM the file instead of loading into memory
+    console.log('Streaming file to client...');
     const stat = fs.statSync(outputPath);
     console.log('Output size:', (stat.size / 1024 / 1024).toFixed(2), 'MB');
     
-    const videoBuffer = fs.readFileSync(outputPath);
     res.set({
       'Content-Type': 'video/mp4',
       'Content-Disposition': `attachment; filename="short_${Date.now()}.mp4"`,
-      'Content-Length': videoBuffer.length
+      'Content-Length': stat.size
     });
-    res.send(videoBuffer);
     
-    // Cleanup after 5 minutes
-    setTimeout(() => {
+    const readStream = fs.createReadStream(outputPath);
+    readStream.pipe(res);
+    
+    readStream.on('end', () => {
+      setTimeout(() => {
+        try { fs.rmSync(renderDir, { recursive: true, force: true }); } catch (e) {}
+      }, 60000);
+    });
+    
+    readStream.on('error', (err) => {
+      console.error('Stream error:', err.message);
       try { fs.rmSync(renderDir, { recursive: true, force: true }); } catch (e) {}
-    }, 300000);
+    });
     
   } catch (error) {
     console.error('Render failed:', error.message);
