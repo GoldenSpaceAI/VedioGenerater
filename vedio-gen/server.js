@@ -76,94 +76,106 @@ app.get('/api/pexels/videos', async (req, res) => {
   }
 });
 
-// Run FFmpeg command
-function runFfmpeg(args) {
+// Run FFmpeg command with timeout
+function runFfmpeg(args, timeoutMs = 120000) {
   return new Promise((resolve, reject) => {
-    console.log('FFmpeg command:', ffmpegPath, args.join(' '));
+    console.log('🎬 FFmpeg:', args.join(' ').substring(0, 200) + '...');
     const proc = spawn(ffmpegPath, args);
     let stderr = '';
+    let timedOut = false;
+    
+    const timer = setTimeout(() => {
+      timedOut = true;
+      proc.kill('SIGKILL');
+      reject(new Error('FFmpeg timed out'));
+    }, timeoutMs);
     
     proc.stderr.on('data', (data) => {
       stderr += data.toString();
     });
     
     proc.on('close', (code) => {
+      clearTimeout(timer);
+      if (timedOut) return;
       if (code === 0) {
         resolve();
       } else {
-        console.error('FFmpeg stderr:', stderr.slice(-500));
+        console.error('FFmpeg error:', stderr.slice(-300));
         reject(new Error(`FFmpeg exited with code ${code}`));
       }
     });
     
     proc.on('error', (err) => {
+      clearTimeout(timer);
       reject(new Error(`Failed to start FFmpeg: ${err.message}`));
     });
-    
-    // Kill FFmpeg if it runs too long (2 minutes max)
-    setTimeout(() => {
-      proc.kill('SIGTERM');
-    }, 120000);
   });
 }
 
-// Download file
-function downloadFile(url, dest) {
+// Download file with retries
+function downloadFile(url, dest, retries = 3) {
   return new Promise((resolve, reject) => {
-    const protocol = url.startsWith('https') ? https : http;
-    const file = fs.createWriteStream(dest);
-    let resolved = false;
-    
-    const done = (err) => {
-      if (resolved) return;
-      resolved = true;
-      file.close();
-      if (err) {
-        try { fs.unlinkSync(dest); } catch (e) {}
-        reject(err);
-      } else {
-        resolve();
-      }
+    const attempt = (remaining) => {
+      const protocol = url.startsWith('https') ? https : http;
+      const file = fs.createWriteStream(dest);
+      let resolved = false;
+      
+      const done = (err) => {
+        if (resolved) return;
+        resolved = true;
+        file.close();
+        if (err) {
+          try { fs.unlinkSync(dest); } catch (e) {}
+          if (remaining > 0) {
+            console.log(`Retrying download (${remaining} attempts left)...`);
+            setTimeout(() => attempt(remaining - 1), 2000);
+          } else {
+            reject(err);
+          }
+        } else {
+          resolve();
+        }
+      };
+      
+      const makeRequest = (currentUrl, redirectCount = 0) => {
+        if (redirectCount > 5) return done(new Error('Too many redirects'));
+        
+        const req = protocol.get(currentUrl, (response) => {
+          if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+            req.destroy();
+            return makeRequest(response.headers.location, redirectCount + 1);
+          }
+          
+          if (response.statusCode !== 200) {
+            req.destroy();
+            return done(new Error(`HTTP ${response.statusCode}`));
+          }
+          
+          response.pipe(file);
+          file.on('finish', () => done(null));
+        });
+        
+        req.on('error', (err) => done(err));
+        req.setTimeout(30000, () => {
+          req.destroy();
+          done(new Error('Download timeout'));
+        });
+      };
+      
+      makeRequest(url);
     };
     
-    const makeRequest = (currentUrl, redirectCount = 0) => {
-      if (redirectCount > 5) return done(new Error('Too many redirects'));
-      
-      console.log(`Downloading: ${currentUrl}`);
-      
-      const req = protocol.get(currentUrl, (response) => {
-        if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-          req.destroy();
-          return makeRequest(response.headers.location, redirectCount + 1);
-        }
-        
-        if (response.statusCode !== 200) {
-          req.destroy();
-          return done(new Error(`HTTP ${response.statusCode}`));
-        }
-        
-        response.pipe(file);
-        file.on('finish', () => done(null));
-      });
-      
-      req.on('error', done);
-      req.setTimeout(30000, () => {
-        req.destroy();
-        done(new Error('Download timeout'));
-      });
-    };
-    
-    makeRequest(url);
+    attempt(retries);
   });
 }
 
-// OPTIMIZED Render endpoint for 2GB RAM
+// MAIN RENDER ENDPOINT - Optimized for 2GB RAM
 app.post('/api/render', upload.single('audio'), async (req, res) => {
   const renderId = uuidv4();
   const renderDir = path.join(TEMP_DIR, renderId);
   
   try {
-    const { clips, timestamps, duration } = req.body;
+    const { clips, duration } = req.body;
     const clipData = JSON.parse(clips);
     const audioBuffer = req.file ? req.file.buffer : null;
     const totalDuration = parseFloat(duration);
@@ -176,96 +188,100 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     }
     
     fs.mkdirSync(renderDir);
-    console.log(`Starting render ${renderId} - ${clipData.length} clips, ${totalDuration}s using ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)}MB RAM`);
     
-    // Save audio once
+    // LIMIT TO MAX 5 CLIPS to prevent OOM
+    const MAX_CLIPS = 5;
+    const clipsToProcess = clipData.slice(0, MAX_CLIPS);
+    
+    console.log(`\n🎬 RENDER START - ID: ${renderId}`);
+    console.log(`📊 Clips: ${clipsToProcess.length} (limited from ${clipData.length})`);
+    console.log(`⏱️ Duration: ${totalDuration}s`);
+    console.log(`💾 Memory: ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)}MB\n`);
+    
+    // Save audio
     const audioPath = path.join(renderDir, 'voice.webm');
     fs.writeFileSync(audioPath, audioBuffer);
     
     // Calculate equal clip duration
-    const clipDuration = Math.ceil(totalDuration / clipData.length);
+    const clipDuration = Math.ceil(totalDuration / clipsToProcess.length);
     
-    // Process ONE clip at a time
-    const finalOutput = path.join(renderDir, 'final_silent.mp4');
-    let firstClip = true;
+    // Process clips ONE AT A TIME - download, trim, delete raw
+    const trimmedFiles = [];
     
-    for (let i = 0; i < clipData.length; i++) {
-      console.log(`\n📹 Clip ${i+1}/${clipData.length} (Memory: ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)}MB)`);
+    for (let i = 0; i < clipsToProcess.length; i++) {
+      console.log(`📹 Clip ${i+1}/${clipsToProcess.length}`);
       
       const rawPath = path.join(renderDir, `raw_${i}.mp4`);
       const trimmedPath = path.join(renderDir, `trimmed_${i}.mp4`);
-      const tempOutput = path.join(renderDir, `temp_${i}.mp4`);
+      trimmedFiles.push(trimmedPath);
       
-      // Step 1: Download clip
+      // Download
       console.log(`  ⬇️ Downloading...`);
-      await downloadFile(clipData[i].url, rawPath);
-      const rawSize = (fs.statSync(rawPath).size / 1024 / 1024).toFixed(2);
-      console.log(`  Downloaded: ${rawSize}MB`);
+      await downloadFile(clipsToProcess[i].url, rawPath);
       
-      // Step 2: Trim and scale clip (optimized for low RAM)
+      // Trim with VERY LOW settings for 2GB RAM
       console.log(`  ✂️ Trimming to ${clipDuration}s...`);
       await runFfmpeg([
         '-i', rawPath,
         '-t', String(clipDuration),
-        '-vf', 'scale=480:854:force_original_aspect_ratio=increase,crop=480:854',
+        '-vf', 'scale=360:640:force_original_aspect_ratio=increase,crop=360:640',
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
-        '-crf', '38',
+        '-crf', '42',
         '-threads', '1',
-        '-bufsize', '200k',
-        '-maxrate', '200k',
+        '-bufsize', '100k',
+        '-maxrate', '100k',
         '-an',
         '-y',
         trimmedPath
       ]);
       
-      // Delete raw immediately
-      fs.unlinkSync(rawPath);
-      console.log(`  ✅ Trimmed successfully`);
+      // DELETE RAW IMMEDIATELY
+      try { fs.unlinkSync(rawPath); } catch (e) {}
       
-      // Step 3: Concatenate or create base
-      if (firstClip) {
-        fs.copyFileSync(trimmedPath, finalOutput);
-        fs.unlinkSync(trimmedPath);
-        firstClip = false;
-        console.log(`  📁 Created base video`);
-      } else {
-        const listPath = path.join(renderDir, 'concat.txt');
-        fs.writeFileSync(listPath, `file '${finalOutput}'\nfile '${trimmedPath}'`);
-        
-        await runFfmpeg([
-          '-f', 'concat',
-          '-safe', '0',
-          '-i', listPath,
-          '-c:v', 'libx264',
-          '-preset', 'ultrafast',
-          '-crf', '38',
-          '-threads', '1',
-          '-an',
-          '-y',
-          tempOutput
-        ]);
-        
-        // Replace final with new concatenated version
-        fs.unlinkSync(finalOutput);
-        fs.renameSync(tempOutput, finalOutput);
-        fs.unlinkSync(trimmedPath);
-        fs.unlinkSync(listPath);
-        console.log(`  🔗 Concatenated`);
-      }
+      const mem = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
+      console.log(`  ✅ Done (Memory: ${mem}MB)`);
       
       // Force garbage collection
-      if (global.gc) {
-        global.gc();
-        console.log(`  🗑️ GC triggered (Memory: ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)}MB)`);
-      }
+      if (global.gc) global.gc();
     }
     
-    // Step 4: Add audio to final video
-    const outputWithAudio = path.join(renderDir, 'output.mp4');
-    console.log(`\n🎵 Adding audio to final video...`);
+    // CONCATENATE ALL TRIMMED CLIPS
+    console.log(`\n🔗 Concatenating ${trimmedFiles.length} clips...`);
+    
+    const listPath = path.join(renderDir, 'list.txt');
+    const listContent = trimmedFiles.map(f => `file '${f}'`).join('\n');
+    fs.writeFileSync(listPath, listContent);
+    
+    const silentVideo = path.join(renderDir, 'silent.mp4');
+    
     await runFfmpeg([
-      '-i', finalOutput,
+      '-f', 'concat',
+      '-safe', '0',
+      '-i', listPath,
+      '-c:v', 'libx264',
+      '-preset', 'ultrafast',
+      '-crf', '38',
+      '-threads', '1',
+      '-an',
+      '-y',
+      silentVideo
+    ], 180000); // 3 minute timeout for concat
+    
+    // DELETE trimmed clips and list
+    for (const f of trimmedFiles) {
+      try { fs.unlinkSync(f); } catch (e) {}
+    }
+    try { fs.unlinkSync(listPath); } catch (e) {}
+    
+    if (global.gc) global.gc();
+    
+    // ADD AUDIO
+    console.log(`🎵 Adding audio...`);
+    const outputPath = path.join(renderDir, 'output.mp4');
+    
+    await runFfmpeg([
+      '-i', silentVideo,
       '-i', audioPath,
       '-c:v', 'copy',
       '-c:a', 'aac',
@@ -274,18 +290,24 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
       '-movflags', '+faststart',
       '-shortest',
       '-y',
-      outputWithAudio
+      outputPath
     ]);
     
-    // Clean up intermediate files
-    fs.unlinkSync(finalOutput);
-    fs.unlinkSync(audioPath);
+    // DELETE silent video and audio
+    try { fs.unlinkSync(silentVideo); } catch (e) {}
+    try { fs.unlinkSync(audioPath); } catch (e) {}
     
-    // Stream to client
-    console.log(`\n📤 Streaming to client...`);
-    const stat = fs.statSync(outputWithAudio);
-    console.log(`Output size: ${(stat.size / 1024 / 1024).toFixed(2)}MB`);
-    console.log(`Final memory: ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)}MB`);
+    if (global.gc) global.gc();
+    
+    // STREAM TO CLIENT
+    const stat = fs.statSync(outputPath);
+    const sizeMB = (stat.size / 1024 / 1024).toFixed(2);
+    const memMB = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
+    
+    console.log(`\n✅ RENDER COMPLETE`);
+    console.log(`📦 Output: ${sizeMB}MB`);
+    console.log(`💾 Memory: ${memMB}MB`);
+    console.log(`📤 Streaming to client...\n`);
     
     res.set({
       'Content-Type': 'video/mp4',
@@ -293,7 +315,7 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
       'Content-Length': stat.size
     });
     
-    const readStream = fs.createReadStream(outputWithAudio);
+    const readStream = fs.createReadStream(outputPath);
     
     readStream.on('end', () => {
       setTimeout(() => {
@@ -303,13 +325,13 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
             console.log('🧹 Cleaned up render directory');
           }
         } catch (e) {
-          console.error('Cleanup error:', e.message);
+          console.log('Cleanup error:', e.message);
         }
       }, 30000);
     });
     
     readStream.on('error', (err) => {
-      console.error('❌ Stream error:', err);
+      console.error('❌ Stream error:', err.message);
       try { fs.rmSync(renderDir, { recursive: true, force: true }); } catch (e) {}
       if (!res.headersSent) {
         res.status(500).json({ error: 'Stream failed' });
@@ -319,7 +341,9 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     readStream.pipe(res);
     
   } catch (error) {
-    console.error('❌ Render failed:', error.message);
+    console.error('❌ RENDER FAILED:', error.message);
+    console.error(error.stack);
+    
     try {
       if (fs.existsSync(renderDir)) {
         fs.rmSync(renderDir, { recursive: true, force: true });
@@ -339,16 +363,15 @@ try {
     for (const dir of dirs) {
       try {
         fs.rmSync(path.join(TEMP_DIR, dir), { recursive: true, force: true });
-        console.log('Cleaned old temp:', dir);
-      } catch (e) {
-        console.log('Cleanup failed for:', dir);
-      }
+      } catch (e) {}
     }
+    console.log('🧹 Cleaned old temp files');
   }
 } catch (e) {
   console.log('Temp cleanup error:', e.message);
 }
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on port ${PORT} with ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)}MB RAM used`);
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`💾 Initial memory: ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)}MB`);
 });
