@@ -36,6 +36,12 @@ if (!fs.existsSync(TEMP_DIR)) {
   console.log('Temp directory created:', TEMP_DIR);
 }
 
+// Find a font file for subtitles
+const FONT_PATH = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
+if (!fs.existsSync(FONT_PATH)) {
+  console.log('⚠️ Font not found at', FONT_PATH, '- subtitles may not render correctly');
+}
+
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -79,7 +85,7 @@ app.get('/api/pexels/videos', async (req, res) => {
 // Run FFmpeg command
 function runFfmpeg(args) {
   return new Promise((resolve, reject) => {
-    console.log('🎬 FFmpeg:', args.join(' ').substring(0, 200) + '...');
+    console.log('🎬 FFmpeg:', args.join(' ').substring(0, 250) + '...');
     const proc = spawn(ffmpegPath, args);
     let stderr = '';
     
@@ -91,7 +97,7 @@ function runFfmpeg(args) {
       if (code === 0) {
         resolve();
       } else {
-        console.error('❌ FFmpeg error:', stderr.slice(-500));
+        console.error('❌ FFmpeg error (last 500 chars):', stderr.slice(-500));
         reject(new Error(`FFmpeg error (code ${code})`));
       }
     });
@@ -99,6 +105,11 @@ function runFfmpeg(args) {
     proc.on('error', (err) => {
       reject(new Error(`Failed to start FFmpeg: ${err.message}`));
     });
+    
+    // 5 minute timeout
+    setTimeout(() => {
+      proc.kill('SIGKILL');
+    }, 300000);
   });
 }
 
@@ -144,14 +155,43 @@ function downloadFile(url, dest) {
   });
 }
 
-// ==================== YOUTUBE-COMPATIBLE RENDER ====================
+// Escape text for FFmpeg drawtext filter
+function escapeDrawtext(text) {
+  return text
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/:/g, '\\:')
+    .replace(/%/g, '\\%')
+    .replace(/{/g, '\\{')
+    .replace(/}/g, '\\}')
+    .replace(/\n/g, ' ');
+}
+
+// Build drawtext filter for subtitles
+function buildSubtitleFilter(subtitles, clipStart, clipEnd) {
+  const clipSubtitles = subtitles.filter(s => {
+    return s.startTime >= clipStart && s.startTime < clipEnd;
+  });
+  
+  if (clipSubtitles.length === 0) return '';
+  
+  // Combine all subtitle text for this clip
+  const text = clipSubtitles.map(s => s.text).join(' ');
+  const escaped = escapeDrawtext(text);
+  
+  // Centered subtitle with background box
+  return `,drawtext=text='${escaped}':fontcolor=white:fontsize=48:box=1:boxcolor=black@0.6:boxborderw=10:x=(w-text_w)/2:y=(h-text_h)/2:fontfile=${FONT_PATH}`;
+}
+
+// ==================== YOUTUBE-COMPATIBLE RENDER WITH SUBTITLES ====================
 app.post('/api/render', upload.single('audio'), async (req, res) => {
   const renderId = uuidv4();
   const renderDir = path.join(TEMP_DIR, renderId);
   
   try {
-    const { clips, duration } = req.body;
+    const { clips, duration, subtitles } = req.body;
     const clipData = JSON.parse(clips);
+    const subtitleData = subtitles ? JSON.parse(subtitles) : [];
     const audioBuffer = req.file ? req.file.buffer : null;
     const totalDuration = parseFloat(duration);
     
@@ -165,11 +205,12 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     fs.mkdirSync(renderDir);
     
     // Limit clips for 2GB RAM
-    const MAX_CLIPS = 4;
+    const MAX_CLIPS = 5;
     const clipsToProcess = clipData.slice(0, MAX_CLIPS);
     
     console.log(`\n🎬 RENDER #${renderId}`);
     console.log(`📊 Clips: ${clipsToProcess.length}, Duration: ${totalDuration}s`);
+    console.log(`📝 Subtitles: ${subtitleData.length} entries`);
     
     // Save audio
     const audioPath = path.join(renderDir, 'voice.webm');
@@ -187,28 +228,45 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
       const trimmedPath = path.join(renderDir, `trim_${i}.mp4`);
       trimmedFiles.push(trimmedPath);
       
+      // Calculate time range for this clip
+      const clipStart = i * clipDuration;
+      const clipEnd = (i + 1) * clipDuration;
+      
+      // Build subtitle filter for this clip
+      const subtitleFilter = buildSubtitleFilter(subtitleData, clipStart, clipEnd);
+      
       // Download
       console.log(`  ⬇️ Downloading...`);
       await downloadFile(clipsToProcess[i].url, rawPath);
       
-      // Trim with YOUTUBE-COMPATIBLE settings
+      // Build video filter
+      let videoFilter = 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920';
+      if (subtitleFilter) {
+        videoFilter += subtitleFilter;
+        console.log(`  📝 Subtitles added for clip ${i+1}`);
+      }
+      
+      // Trim with subtitles
       console.log(`  ✂️ Trimming to ${clipDuration}s...`);
-      await runFfmpeg([
+      
+      const ffmpegArgs = [
         '-i', rawPath,
         '-t', String(clipDuration),
-        '-vf', 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920',
+        '-vf', videoFilter,
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
         '-crf', '23',
-        '-pix_fmt', 'yuv420p',        // REQUIRED for YouTube
-        '-profile:v', 'main',          // YouTube compatible
+        '-pix_fmt', 'yuv420p',
+        '-profile:v', 'main',
         '-level', '4.0',
-        '-r', '30',                    // Standard framerate
+        '-r', '30',
         '-threads', '1',
         '-an',
         '-y',
         trimmedPath
-      ]);
+      ];
+      
+      await runFfmpeg(ffmpegArgs);
       
       // Delete raw immediately
       try { fs.unlinkSync(rawPath); } catch (e) {}
@@ -231,14 +289,7 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
       '-f', 'concat',
       '-safe', '0',
       '-i', listPath,
-      '-c:v', 'libx264',
-      '-preset', 'ultrafast',
-      '-crf', '23',
-      '-pix_fmt', 'yuv420p',
-      '-profile:v', 'main',
-      '-level', '4.0',
-      '-r', '30',
-      '-threads', '1',
+      '-c:v', 'copy',  // Copy to preserve subtitles
       '-an',
       '-y',
       silentVideo
@@ -259,13 +310,13 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     await runFfmpeg([
       '-i', silentVideo,
       '-i', audioPath,
-      '-c:v', 'copy',              // Copy video (no re-encode = saves memory)
-      '-c:a', 'aac',               // AAC audio required for YouTube
-      '-b:a', '192k',              // Good audio quality
-      '-ar', '44100',              // Standard sample rate
-      '-ac', '2',                  // Stereo
+      '-c:v', 'copy',              // Preserve video with subtitles
+      '-c:a', 'aac',
+      '-b:a', '192k',
+      '-ar', '44100',
+      '-ac', '2',
       '-threads', '1',
-      '-movflags', '+faststart',   // Web optimized (YouTube likes this)
+      '-movflags', '+faststart',
       '-shortest',
       '-y',
       outputPath
@@ -287,7 +338,7 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     
     res.set({
       'Content-Type': 'video/mp4',
-      'Content-Disposition': `attachment; filename="shorts_${Date.now()}.mp4"`,
+      'Content-Disposition': `attachment; filename="shorts_subtitled_${Date.now()}.mp4"`,
       'Content-Length': stat.size
     });
     
@@ -296,7 +347,7 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     readStream.on('end', () => {
       setTimeout(() => {
         try { fs.rmSync(renderDir, { recursive: true, force: true }); } catch (e) {}
-      }, 30000);
+      }, 60000);
     });
     
     readStream.on('error', (err) => {
@@ -332,4 +383,5 @@ try {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`💾 Memory: ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)}MB`);
+  console.log(`🔤 Font path: ${FONT_PATH} (${fs.existsSync(FONT_PATH) ? 'Found' : 'NOT FOUND'})`);
 });
