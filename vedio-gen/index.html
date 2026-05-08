@@ -430,20 +430,21 @@
       <div class="stat-badge">📹 Clips: <span class="value" id="clipsFound">—</span></div>
       <div class="stat-badge" id="recordingBadge" style="display:none;">🎙️ Recording: <span class="value" id="recordingTime">0s</span></div>
     </div>
-<div class="info-row" style="margin-bottom:8px;">
-  <div class="stat-badge">
-    ⚡ Sec per clip: 
-    <select id="secPerClip" style="background:transparent;border:none;color:var(--gold-light);font-weight:600;font-size:12px;cursor:pointer;outline:none;" onchange="updateStats()">
-      <option value="2">2s</option>
-      <option value="3">3s</option>
-      <option value="5" selected>5s</option>
-      <option value="7">7s</option>
-      <option value="10">10s</option>
-    </select>
-  </div>
-</div>
+    
+    <div class="info-row" style="margin-bottom:8px;">
+      <div class="stat-badge">
+        ⚡ Sec per clip: 
+        <select id="secPerClip" style="background:transparent;border:none;color:var(--gold-light);font-weight:600;font-size:12px;cursor:pointer;outline:none;" onchange="updateStats()">
+          <option value="2">2s</option>
+          <option value="3">3s</option>
+          <option value="5" selected>5s</option>
+          <option value="7">7s</option>
+          <option value="10">10s</option>
+        </select>
+      </div>
+    </div>
 
-<div class="section-label">🎞️ Scene Breakdown</div>    <div class="section-label">🎞️ Scene Breakdown</div>
+    <div class="section-label">🎞️ Scene Breakdown</div>
     <div class="scene-list" id="sceneList">
       <div class="scene-item"><span class="scene-num">—</span> Paste your script and generate scenes first</div>
     </div>
@@ -500,7 +501,13 @@
         });
         const d = await r.json();
         document.getElementById('typing')?.remove();
-        if (d.choices?.[0]) chatMessages.push({ role: 'assistant', content: d.choices[0].message.content });
+        if (d.choices?.[0]) {
+          const aiResponse = d.choices[0].message.content;
+          chatMessages.push({ role: 'assistant', content: aiResponse });
+          // Auto-fill the script textarea with AI response
+          document.getElementById('scriptInput').value = aiResponse;
+          updateStats();
+        }
       } catch (e) {
         document.getElementById('typing')?.remove();
         chatMessages.push({ role: 'assistant', content: 'Connection error.' });
@@ -510,6 +517,7 @@
 
     // ==================== STATE ====================
     let scenes = [];
+    let sceneTimestamps = [];
     let videoClips = [];
     let recordedAudio = null;
     let videoDuration = 0;
@@ -526,115 +534,94 @@
 
     document.getElementById('scriptInput').addEventListener('input', updateStats);
 
- // ==================== SCENES ====================
-async function extractScenes() {
-  const script = document.getElementById('scriptInput').value.trim();
-  if (!script) return alert('Paste your script first.');
-  const btn = document.getElementById('btnScenes');
-  const status = document.getElementById('status');
-  btn.disabled = true;
-  status.innerHTML = '<span class="spinner"></span> Analyzing script...';
+    // ==================== SCENES (FIXED - AI reads script!) ====================
+    async function extractScenes() {
+      const script = document.getElementById('scriptInput').value.trim();
+      if (!script) return alert('Paste your script first.');
+      const btn = document.getElementById('btnScenes');
+      const status = document.getElementById('status');
+      btn.disabled = true;
+      status.innerHTML = '<span class="spinner"></span> Analyzing script...';
 
-  const charCount = script.length;
-  const estDuration = Math.min(60, Math.ceil(charCount / 15));
-  
-  // Get user's preferred seconds per clip
-  const secPerClip = parseInt(document.getElementById('secPerClip').value) || 5;
-  const numScenes = Math.max(2, Math.min(10, Math.ceil(estDuration / secPerClip)));
+      const charCount = script.length;
+      const estDuration = Math.min(60, Math.ceil(charCount / 15));
+      const secPerClip = parseInt(document.getElementById('secPerClip').value) || 5;
+      const numScenes = Math.max(2, Math.min(10, Math.ceil(estDuration / secPerClip)));
 
-  try {
-    const r = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages: [
-          {
-            role: 'system',
-            content: `You are a video scene extractor. Read the script carefully and extract ${numScenes} scenes that MATCH what's being talked about. 
+      try {
+        const r = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [
+              {
+                role: 'system',
+                content: `Read this script and extract ${numScenes} video scenes that MATCH what's being described. 
 
-RULES:
-- Read the actual script content and pick relevant keywords
-- If script mentions "octopus", use scenes like "cute octopus swimming", "octopus close up", "octopus underwater"
-- If script mentions "cars", use scenes like "sports car driving", "city traffic"
-- Match the MOOD and SUBJECT of the script
-- Use 2-4 word descriptive phrases
-- Make them searchable on stock footage sites (Pexels)
-- Output ONE scene per line, no numbers, no extra text
-
-EXAMPLE:
-Script about octopuses having three hearts should output:
-cute octopus swimming
-octopus close up tentacles
-underwater ocean reef
-octopus squeezing through rocks
-colorful coral reef underwater`
-          },
-          { role: 'user', content: `Extract ${numScenes} scenes from this script:\n\n${script}` }
-        ]
-      })
-    });
-    const d = await r.json();
-    if (d.choices?.[0]) {
-      const content = d.choices[0].message.content;
-      console.log('AI Scene Response:', content); // Debug: see what AI returns
-      
-      const lines = content.split('\n').filter(l => l.trim());
-      scenes = lines.map(l => l.replace(/^\d+[\.\)]\s*/, '').replace(/^\d+\.?\d*\s*/, '').replace(/^[-*]\s*/, '').trim()).filter(l => l.length > 0);
-      
-      // If AI didn't return enough scenes, fill with generic fallbacks
-      while (scenes.length < numScenes) {
-        scenes.push('nature landscape');
+IMPORTANT RULES:
+- Actually READ the script content
+- If script is about octopuses → use "cute octopus swimming", "octopus close up", "ocean underwater"
+- If script is about cars → use "sports car driving", "city highway traffic"
+- If script is about cooking → use "chef cooking kitchen", "food preparation"
+- Match the EXACT subject and mood of the script
+- Output ONE scene per line, no numbers, no bullets, no extra text
+- Each line should be 2-5 words, highly searchable on stock footage sites`
+              },
+              { role: 'user', content: `Extract ${numScenes} scenes from:\n\n${script}` }
+            ]
+          })
+        });
+        const d = await r.json();
+        if (d.choices?.[0]) {
+          const content = d.choices[0].message.content;
+          console.log('AI Scene Response:', content);
+          
+          const lines = content.split('\n')
+            .map(l => l.replace(/^\d+[\.\)]\s*/, '').replace(/^[-*]\s*/, '').trim())
+            .filter(l => l.length > 0 && l.length < 100);
+          
+          scenes = lines.slice(0, numScenes);
+          
+          // Fill if not enough
+          while (scenes.length < numScenes) {
+            scenes.push('beautiful nature scenery');
+          }
+          
+          const clipDuration = parseInt(document.getElementById('secPerClip').value) || 5;
+          sceneTimestamps = scenes.map((_, i) => i * clipDuration);
+          
+          renderScenes();
+          document.getElementById('btnFetch').disabled = false;
+          status.innerHTML = `✅ ${scenes.length} scenes extracted from YOUR script (~${clipDuration}s each)`;
+        }
+      } catch (e) {
+        console.error('Scene error:', e);
+        status.innerHTML = '❌ Failed to extract scenes';
       }
-      
-      // Equal timestamps based on user's chosen seconds
-      const clipDuration = parseInt(document.getElementById('secPerClip').value) || 5;
-      sceneTimestamps = scenes.map((_, i) => i * clipDuration);
-      
-      renderScenes();
-      document.getElementById('btnFetch').disabled = false;
-      status.innerHTML = `✅ ${scenes.length} scenes extracted from your script (~${clipDuration}s each)`;
+      btn.disabled = false;
+      updateStats();
     }
-  } catch (e) {
-    console.error('Scene extraction error:', e);
-    status.innerHTML = '❌ Failed to extract scenes';
-  }
-  btn.disabled = false;
-  updateStats();
-}
-    // Equal timestamps based on user's chosen seconds
-      const clipDuration = parseInt(document.getElementById('secPerClip').value) || 5;
-      sceneTimestamps = scenes.map((_, i) => i * clipDuration);
-      
-      renderScenes();
-      document.getElementById('btnFetch').disabled = false;
-      status.innerHTML = `✅ ${scenes.length} scenes extracted (~${clipDuration}s each, click to edit)`;
+
+    function renderScenes() {
+      document.getElementById('sceneList').innerHTML = scenes.map((s, i) => `
+        <div class="scene-item found" id="scene-${i}">
+          <span class="scene-num">${i+1}</span>
+          <input 
+            type="text" 
+            value="${s}" 
+            id="keyword-${i}" 
+            style="flex:1;background:transparent;border:none;color:#ccc;font-size:12px;outline:none;padding:4px 0;"
+            onchange="updateKeyword(${i}, this.value)"
+          >
+          <span class="status-dot pending" id="dot-${i}"></span>
+        </div>
+      `).join('');
     }
-  } catch (e) {
-    status.innerHTML = '❌ Failed to extract scenes';
-  }
-  btn.disabled = false;
-  updateStats();
-}
 
-function renderScenes() {
-  document.getElementById('sceneList').innerHTML = scenes.map((s, i) => `
-    <div class="scene-item found" id="scene-${i}">
-      <span class="scene-num">${i+1}</span>
-      <input 
-        type="text" 
-        value="${s}" 
-        id="keyword-${i}" 
-        style="flex:1;background:transparent;border:none;color:#ccc;font-size:12px;outline:none;padding:4px 0;"
-        onchange="updateKeyword(${i}, this.value)"
-      >
-      <span class="status-dot pending" id="dot-${i}"></span>
-    </div>
-  `).join('');
-}
+    function updateKeyword(index, value) {
+      scenes[index] = value.trim();
+    }
 
-function updateKeyword(index, value) {
-  scenes[index] = value.trim();
-}
     // ==================== PEXELS ====================
     async function fetchVideos() {
       if (!scenes.length) return;
@@ -767,7 +754,6 @@ function updateKeyword(index, value) {
           throw new Error(err.error || 'Server render failed');
         }
 
-        // Download the video
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
