@@ -76,28 +76,23 @@ app.get('/api/pexels/videos', async (req, res) => {
   }
 });
 
-// Run FFmpeg command with detailed error logging
+// Run FFmpeg command
 function runFfmpeg(args) {
   return new Promise((resolve, reject) => {
-    console.log('🎬 FFmpeg:', ffmpegPath, args.join(' '));
+    console.log('🎬 FFmpeg:', args.join(' ').substring(0, 200) + '...');
     const proc = spawn(ffmpegPath, args);
     let stderr = '';
     
     proc.stderr.on('data', (data) => {
       stderr += data.toString();
-      // Log progress for long operations
-      if (stderr.includes('time=')) {
-        const match = stderr.match(/time=(\S+)/);
-        if (match) console.log(`  ⏱️ Progress: ${match[1]}`);
-      }
     });
     
     proc.on('close', (code) => {
       if (code === 0) {
         resolve();
       } else {
-        console.error('❌ FFmpeg stderr (last 500 chars):', stderr.slice(-500));
-        reject(new Error(`FFmpeg error (code ${code}): ${stderr.slice(-300)}`));
+        console.error('❌ FFmpeg error:', stderr.slice(-500));
+        reject(new Error(`FFmpeg error (code ${code})`));
       }
     });
     
@@ -149,7 +144,7 @@ function downloadFile(url, dest) {
   });
 }
 
-// MAIN RENDER ENDPOINT - Balanced quality for 2GB RAM
+// ==================== YOUTUBE-COMPATIBLE RENDER ====================
 app.post('/api/render', upload.single('audio'), async (req, res) => {
   const renderId = uuidv4();
   const renderDir = path.join(TEMP_DIR, renderId);
@@ -169,13 +164,12 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     
     fs.mkdirSync(renderDir);
     
-    // LIMIT TO 4 CLIPS MAX for better quality
+    // Limit clips for 2GB RAM
     const MAX_CLIPS = 4;
     const clipsToProcess = clipData.slice(0, MAX_CLIPS);
     
     console.log(`\n🎬 RENDER #${renderId}`);
-    console.log(`📊 Using ${clipsToProcess.length}/${clipData.length} clips`);
-    console.log(`⏱️ Total duration: ${totalDuration}s`);
+    console.log(`📊 Clips: ${clipsToProcess.length}, Duration: ${totalDuration}s`);
     
     // Save audio
     const audioPath = path.join(renderDir, 'voice.webm');
@@ -183,18 +177,7 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     
     const clipDuration = Math.ceil(totalDuration / clipsToProcess.length);
     
-    // BETTER QUALITY SETTINGS (still memory-conscious)
-    const trimSettings = [
-      '-vf', 'scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280', // 720p
-      '-c:v', 'libx264',
-      '-preset', 'ultrafast',
-      '-crf', '28', // Good quality
-      '-threads', '1',
-      '-an',
-      '-y'
-    ];
-    
-    // Process one clip at a time
+    // Process each clip one at a time
     const trimmedFiles = [];
     
     for (let i = 0; i < clipsToProcess.length; i++) {
@@ -207,15 +190,23 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
       // Download
       console.log(`  ⬇️ Downloading...`);
       await downloadFile(clipsToProcess[i].url, rawPath);
-      const rawSize = (fs.statSync(rawPath).size / 1024 / 1024).toFixed(2);
-      console.log(`  📦 Size: ${rawSize}MB`);
       
-      // Trim with 720p quality
-      console.log(`  ✂️ Trimming to ${clipDuration}s at 720p...`);
+      // Trim with YOUTUBE-COMPATIBLE settings
+      console.log(`  ✂️ Trimming to ${clipDuration}s...`);
       await runFfmpeg([
         '-i', rawPath,
         '-t', String(clipDuration),
-        ...trimSettings,
+        '-vf', 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920',
+        '-c:v', 'libx264',
+        '-preset', 'ultrafast',
+        '-crf', '23',
+        '-pix_fmt', 'yuv420p',        // REQUIRED for YouTube
+        '-profile:v', 'main',          // YouTube compatible
+        '-level', '4.0',
+        '-r', '30',                    // Standard framerate
+        '-threads', '1',
+        '-an',
+        '-y',
         trimmedPath
       ]);
       
@@ -228,7 +219,7 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
       if (global.gc) global.gc();
     }
     
-    // Concatenate all clips
+    // Concatenate all trimmed clips
     console.log(`\n🔗 Stitching ${trimmedFiles.length} clips...`);
     
     const listPath = path.join(renderDir, 'list.txt');
@@ -242,7 +233,11 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
       '-i', listPath,
       '-c:v', 'libx264',
       '-preset', 'ultrafast',
-      '-crf', '26', // Keep good quality
+      '-crf', '23',
+      '-pix_fmt', 'yuv420p',
+      '-profile:v', 'main',
+      '-level', '4.0',
+      '-r', '30',
       '-threads', '1',
       '-an',
       '-y',
@@ -257,18 +252,20 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     
     if (global.gc) global.gc();
     
-    // Add audio
+    // Add audio to video
     console.log(`🎵 Adding audio...`);
     const outputPath = path.join(renderDir, 'output.mp4');
     
     await runFfmpeg([
       '-i', silentVideo,
       '-i', audioPath,
-      '-c:v', 'copy', // No re-encoding = saves memory!
-      '-c:a', 'aac',
-      '-b:a', '128k', // Good audio quality
+      '-c:v', 'copy',              // Copy video (no re-encode = saves memory)
+      '-c:a', 'aac',               // AAC audio required for YouTube
+      '-b:a', '192k',              // Good audio quality
+      '-ar', '44100',              // Standard sample rate
+      '-ac', '2',                  // Stereo
       '-threads', '1',
-      '-movflags', '+faststart',
+      '-movflags', '+faststart',   // Web optimized (YouTube likes this)
       '-shortest',
       '-y',
       outputPath
@@ -278,16 +275,19 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     try { fs.unlinkSync(silentVideo); } catch (e) {}
     try { fs.unlinkSync(audioPath); } catch (e) {}
     
+    if (global.gc) global.gc();
+    
     // Stream to client
     const stat = fs.statSync(outputPath);
     const sizeMB = (stat.size / 1024 / 1024).toFixed(2);
     
-    console.log(`✅ COMPLETE! Output: ${sizeMB}MB`);
-    console.log(`📤 Streaming...\n`);
+    console.log(`\n✅ RENDER COMPLETE`);
+    console.log(`📦 Output: ${sizeMB}MB`);
+    console.log(`📤 Streaming to client...`);
     
     res.set({
       'Content-Type': 'video/mp4',
-      'Content-Disposition': `attachment; filename="short_${Date.now()}.mp4"`,
+      'Content-Disposition': `attachment; filename="shorts_${Date.now()}.mp4"`,
       'Content-Length': stat.size
     });
     
@@ -300,7 +300,7 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     });
     
     readStream.on('error', (err) => {
-      console.error('Stream error:', err.message);
+      console.error('❌ Stream error:', err.message);
       try { fs.rmSync(renderDir, { recursive: true, force: true }); } catch (e) {}
       if (!res.headersSent) {
         res.status(500).json({ error: 'Stream failed' });
@@ -325,8 +325,11 @@ try {
     fs.mkdirSync(TEMP_DIR, { recursive: true });
     console.log('🧹 Cleaned temp directory');
   }
-} catch (e) {}
+} catch (e) {
+  console.log('Cleanup error:', e.message);
+}
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`💾 Memory: ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)}MB`);
 });
