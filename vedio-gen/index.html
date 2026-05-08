@@ -526,7 +526,7 @@
 
     document.getElementById('scriptInput').addEventListener('input', updateStats);
 
-   // ==================== SCENES ====================
+ // ==================== SCENES ====================
 async function extractScenes() {
   const script = document.getElementById('scriptInput').value.trim();
   if (!script) return alert('Paste your script first.');
@@ -550,18 +550,58 @@ async function extractScenes() {
         messages: [
           {
             role: 'system',
-            content: `Split this script into exactly ${numScenes} scenes for a ${estDuration}-second video. Use GENERIC, HIGHLY SEARCHABLE stock footage terms like "city traffic", "ocean waves", "office work", "walking street", "aerial nature", "sunset sky", "people crowd", "mountain view". Avoid specific or rare subjects. Output one scene per line in this format: "keyword1 keyword2 keyword3". No numbers, no extra text.`
+            content: `You are a video scene extractor. Read the script carefully and extract ${numScenes} scenes that MATCH what's being talked about. 
+
+RULES:
+- Read the actual script content and pick relevant keywords
+- If script mentions "octopus", use scenes like "cute octopus swimming", "octopus close up", "octopus underwater"
+- If script mentions "cars", use scenes like "sports car driving", "city traffic"
+- Match the MOOD and SUBJECT of the script
+- Use 2-4 word descriptive phrases
+- Make them searchable on stock footage sites (Pexels)
+- Output ONE scene per line, no numbers, no extra text
+
+EXAMPLE:
+Script about octopuses having three hearts should output:
+cute octopus swimming
+octopus close up tentacles
+underwater ocean reef
+octopus squeezing through rocks
+colorful coral reef underwater`
           },
-          { role: 'user', content: script }
+          { role: 'user', content: `Extract ${numScenes} scenes from this script:\n\n${script}` }
         ]
       })
     });
     const d = await r.json();
     if (d.choices?.[0]) {
-      const lines = d.choices[0].message.content.split('\n').filter(l => l.trim());
-      scenes = lines.map(l => l.replace(/^\d+[\.\)]\s*/, '').replace(/^\d+\.?\d*\s*/, '').trim());
+      const content = d.choices[0].message.content;
+      console.log('AI Scene Response:', content); // Debug: see what AI returns
+      
+      const lines = content.split('\n').filter(l => l.trim());
+      scenes = lines.map(l => l.replace(/^\d+[\.\)]\s*/, '').replace(/^\d+\.?\d*\s*/, '').replace(/^[-*]\s*/, '').trim()).filter(l => l.length > 0);
+      
+      // If AI didn't return enough scenes, fill with generic fallbacks
+      while (scenes.length < numScenes) {
+        scenes.push('nature landscape');
+      }
       
       // Equal timestamps based on user's chosen seconds
+      const clipDuration = parseInt(document.getElementById('secPerClip').value) || 5;
+      sceneTimestamps = scenes.map((_, i) => i * clipDuration);
+      
+      renderScenes();
+      document.getElementById('btnFetch').disabled = false;
+      status.innerHTML = `✅ ${scenes.length} scenes extracted from your script (~${clipDuration}s each)`;
+    }
+  } catch (e) {
+    console.error('Scene extraction error:', e);
+    status.innerHTML = '❌ Failed to extract scenes';
+  }
+  btn.disabled = false;
+  updateStats();
+}
+    // Equal timestamps based on user's chosen seconds
       const clipDuration = parseInt(document.getElementById('secPerClip').value) || 5;
       sceneTimestamps = scenes.map((_, i) => i * clipDuration);
       
