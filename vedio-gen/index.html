@@ -320,6 +320,7 @@
       display: flex;
       align-items: center;
       gap: 8px;
+      margin-top: 8px;
     }
 
     @media (max-width: 400px) {
@@ -368,40 +369,40 @@
       <button class="btn btn-outline" id="btnAudioToggle" onclick="toggleAudio()" style="flex:0;min-width:auto;padding:8px 14px;">🎤 ON</button>
     </div>
 
-    <!-- ===== NEW: INTRO HOOK TEXT ===== -->
+    <!-- INTRO HOOK TEXT -->
     <div class="card highlight-box">
       <div class="card-header">
         <span>⚡</span>
         <span class="label">Intro Hook Text</span>
-        <span style="font-size:10px;color:var(--muted);margin-left:auto;">First 4 seconds</span>
+        <span style="font-size:10px;color:var(--muted);margin-left:auto;">First 4s</span>
       </div>
-      <input type="text" id="introTextInput" placeholder="e.g. THE SUN IS EXPLODING RIGHT NOW!" maxlength="40">
-      <div class="preview-note" style="margin-top:8px;">
-        <span>💡</span> Big yellow text in center. Grabs attention immediately!
+      <input type="text" id="introTextInput" placeholder="e.g. THE SUN IS DYING RIGHT NOW!" maxlength="40">
+      <div class="preview-note">
+        <span>💡</span> Big yellow text in center. Stops the scroll!
       </div>
     </div>
 
-    <!-- ===== NEW: MIDDLE TEXT ===== -->
+    <!-- MIDDLE TEXT -->
     <div class="card highlight-box">
       <div class="card-header">
         <span>❓</span>
-        <span class="label">Middle Question Text</span>
-        <span style="font-size:10px;color:var(--muted);margin-left:auto;">Halfway point</span>
+        <span class="label">Middle Question</span>
+        <span style="font-size:10px;color:var(--muted);margin-left:auto;">Halfway</span>
       </div>
-      <input type="text" id="midTextInput" placeholder="e.g. Can you guess what happens next?" maxlength="35">
-      <div class="preview-note" style="margin-top:8px;">
-        <span>💡</span> Orange text appears mid-video. Gets people to comment!
+      <input type="text" id="midTextInput" placeholder="e.g. Can you guess which planet is DIAMOND?" maxlength="35">
+      <div class="preview-note">
+        <span>💡</span> Orange text. Gets people to comment!
       </div>
     </div>
 
-    <!-- ===== END SCREEN TEXT ===== -->
+    <!-- END SCREEN TEXT -->
     <div class="card">
       <div class="card-header">
         <span>💬</span>
         <span class="label">End Screen Text</span>
         <span style="font-size:10px;color:var(--muted);margin-left:auto;">Last clip</span>
       </div>
-      <input type="text" id="endTextInput" placeholder="e.g. SUBSCRIBE FOR MORE! 🚀" maxlength="30">
+      <input type="text" id="endTextInput" placeholder="e.g. FOLLOW FOR MORE! 🚀" maxlength="30">
     </div>
 
     <!-- SCENES -->
@@ -441,7 +442,7 @@
 
   <div class="countdown" id="countdown"></div>
 
- <script>
+  <script>
     // ==================== STATE ====================
     let scenes = [];
     let videoClips = [];
@@ -516,7 +517,7 @@
       c.innerHTML = subtitles.map(s => `<div class="sub-line"><span class="time">${s.startTime.toFixed(0)}s</span><span>${s.text}</span></div>`).join('');
     }
 
-    // ==================== AI SCENE EXTRACTION ====================
+    // ==================== EXTRACT SCENES ====================
     async function extractScenes() {
       const script = document.getElementById('scriptInput').value.trim();
       if (!script) return alert('Paste your script first.');
@@ -524,12 +525,13 @@
       const btn = document.getElementById('btnScenes');
       const status = document.getElementById('status');
       btn.disabled = true;
-      status.innerHTML = '<span class="spinner"></span> AI is reading your script...';
+      status.innerHTML = '<span class="spinner"></span> AI reading script...';
       status.className = 'status';
 
       const secPerClip = parseInt(document.getElementById('secPerClip').value) || 5;
       const estDur = Math.min(60, Math.ceil(script.length / 15));
-      const numScenes = Math.max(2, Math.min(10, Math.ceil(estDur / secPerClip)));
+      // Limit to max 6 scenes to prevent memory crash
+      const numScenes = Math.max(2, Math.min(6, Math.ceil(estDur / secPerClip)));
       const totalDuration = numScenes * secPerClip;
 
       try {
@@ -540,22 +542,14 @@
             messages: [
               {
                 role: 'system',
-                content: `You are a Pexels video search expert. Read the script below and return EXACTLY ${numScenes} search queries.
-
-RULES:
-- ACTUALLY READ the script
-- Match the EXACT subject
-- Each line: 2-5 words, searchable on Pexels
-- Output ONLY queries, one per line
-- NO numbers, NO bullets`
+                content: `You extract Pexels video search queries. Return EXACTLY ${numScenes} queries for the script. Read the script and match its subject. Output one per line, 2-5 words each. No numbers, no bullets.`
               },
-              { role: 'user', content: `SCRIPT:\n\n${script}\n\nReturn ${numScenes} queries:` }
+              { role: 'user', content: `Script:\n\n${script}\n\nReturn ${numScenes} queries:` }
             ]
           })
         });
         
         const d = await r.json();
-        
         if (d.choices?.[0]) {
           const content = d.choices[0].message.content;
           console.log('AI Scenes:', content);
@@ -565,7 +559,7 @@ RULES:
             .filter(l => l.length > 2 && l.length < 80)
             .slice(0, numScenes);
           
-          while (scenes.length < numScenes) scenes.push('beautiful nature landscape');
+          while (scenes.length < numScenes) scenes.push('beautiful nature');
           scenes = scenes.slice(0, numScenes);
           
           subtitles = generateSubtitles(script, totalDuration);
@@ -574,12 +568,11 @@ RULES:
           renderSubPreview();
           document.getElementById('btnFetch').disabled = false;
           updateRecordBtn();
-          status.innerHTML = `✅ ${scenes.length} scenes extracted`;
+          status.innerHTML = `✅ ${scenes.length} scenes (max 6)`;
           status.className = 'status success';
         }
       } catch (e) {
-        console.error('Error:', e);
-        status.textContent = '❌ Failed';
+        status.textContent = '❌ Failed to extract';
         status.className = 'status error';
       }
       btn.disabled = false;
@@ -693,7 +686,7 @@ RULES:
     // ==================== RENDER ====================
     async function renderVideo() {
       const validClips = videoClips.filter(c => c);
-      if (!validClips.length) return alert('Fetch clips first.');
+      if (!validClips.length) return alert('No clips. Fetch first.');
       if (audioEnabled && !recordedAudio) return alert('Record or disable audio.');
 
       const btn = document.getElementById('btnRender');
@@ -706,8 +699,7 @@ RULES:
         const ratio = validClips.length / videoClips.length;
         const adjustedDuration = Math.round(videoDuration * ratio);
         
-        console.log('📊 Clips:', validClips.length, '/', videoClips.length);
-        console.log('⏱ Duration:', adjustedDuration, 's');
+        console.log('Clips:', validClips.length, 'Duration:', adjustedDuration);
         
         const formData = new FormData();
         if (recordedAudio && audioEnabled) formData.append('audio', recordedAudio, 'voice.webm');
@@ -719,7 +711,17 @@ RULES:
         formData.append('endText', document.getElementById('endTextInput').value.trim());
 
         const r = await fetch('/api/render', { method: 'POST', body: formData });
-        if (!r.ok) { const e = await r.json(); throw new Error(e.error); }
+        
+        if (!r.ok) {
+          // Try to parse error, but might get HTML
+          const text = await r.text();
+          try {
+            const err = JSON.parse(text);
+            throw new Error(err.error || 'Server error');
+          } catch (parseErr) {
+            throw new Error('Server crashed (out of memory?). Try fewer scenes.');
+          }
+        }
 
         const blob = await r.blob();
         const url = URL.createObjectURL(blob);
@@ -729,7 +731,7 @@ RULES:
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
-        status.textContent = '✅ Downloaded! 🚀';
+        status.textContent = '✅ Downloaded! Ready! 🚀';
         status.className = 'status success';
       } catch (e) {
         console.error(e);
@@ -738,4 +740,6 @@ RULES:
       }
       btn.disabled = false;
     }
-</script>
+  </script>
+</body>
+</html>
