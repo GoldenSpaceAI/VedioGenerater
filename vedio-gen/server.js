@@ -22,6 +22,9 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 
 const TEMP_DIR = '/tmp/video-gen';
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
 
+let FONT_PATH = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
+if (!fs.existsSync(FONT_PATH)) FONT_PATH = '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf';
+
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 app.post('/api/chat', async (req, res) => {
@@ -50,7 +53,7 @@ function runFfmpeg(args) {
     proc.stderr.on('data', d => stderr += d.toString());
     proc.on('close', code => {
       if (code === 0) resolve();
-      else reject(new Error(`FFmpeg code ${code}`));
+      else reject(new Error(`FFmpeg code ${code}: ${stderr.slice(-200)}`));
     });
     proc.on('error', reject);
     setTimeout(() => proc.kill('SIGKILL'), 180000);
@@ -81,23 +84,23 @@ function downloadFile(url, dest) {
   });
 }
 
-// ==================== SIMPLE RENDER (Original working version) ====================
+// ==================== RENDER ====================
 app.post('/api/render', upload.single('audio'), async (req, res) => {
   const id = uuidv4();
   const dir = path.join(TEMP_DIR, id);
   
   try {
-    const { clips, duration } = req.body;
+    const { clips, hookText, duration } = req.body;
     const clipData = JSON.parse(clips || '[]');
-    const totalDuration = parseFloat(duration) || 60;
+    const hook = hookText || '';
     
     const validClips = clipData.filter(c => c && c.url);
     if (!validClips.length) return res.status(400).json({ error: 'No clips' });
     
     const actualCount = validClips.length;
-    const clipDuration = 10;
+    const EXACT_CLIP_DURATION = 10; // FORCE exactly 10 seconds per clip
     
-    console.log(`🎬 RENDER | ${actualCount} clips × 10s`);
+    console.log(`🎬 RENDER | ${actualCount} clips × ${EXACT_CLIP_DURATION}s | Hook: "${hook}"`);
     
     fs.mkdirSync(dir);
     
@@ -107,32 +110,48 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     if (hasAudio) {
       fs.writeFileSync(audioPath, req.file.buffer);
     } else {
-      await runFfmpeg(['-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo', '-t', String(actualCount * 10), '-c:a', 'libopus', '-y', audioPath]);
+      await runFfmpeg(['-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo', '-t', String(actualCount * EXACT_CLIP_DURATION), '-c:a', 'libopus', '-y', audioPath]);
     }
     
     const segments = [];
     
     for (let i = 0; i < actualCount; i++) {
-      console.log(`📹 ${i+1}/${actualCount}`);
+      console.log(`📹 Clip ${i+1}/${actualCount}`);
       const raw = path.join(dir, `r${i}.mp4`);
       const seg = path.join(dir, `s${i}.mp4`);
       
       await downloadFile(validClips[i].url, raw);
       
+      // Build video filter
+      let vf = 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920';
+      
+      // ===== INTRO HOOK TEXT - First clip, 5 seconds, YELLOW, centered =====
+      if (i === 0 && hook) {
+        const cleanHook = hook.replace(/'/g, "'\\''").replace(/:/g, '\\:').replace(/,/g, '').replace(/"/g, '').substring(0, 40);
+        vf += `,drawtext=text='${cleanHook}':fontcolor=yellow:fontsize=56:box=1:boxcolor=black@0.8:boxborderw=14:x=(w-text_w)/2:y=(h-text_h)/2:fontfile='${FONT_PATH}':enable='between(t,0,5)'`;
+      }
+      
+      // Enforce EXACTLY 10 seconds - trim both start and duration
       await runFfmpeg([
-        '-i', raw, '-t', String(clipDuration),
-        '-vf', 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920',
+        '-i', raw,
+        '-ss', '0',                    // Start from beginning
+        '-t', String(EXACT_CLIP_DURATION), // EXACTLY 10 seconds
+        '-vf', vf,
         '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
         '-pix_fmt', 'yuv420p', '-r', '30', '-threads', '1',
         '-an', '-y', seg
       ]);
+      
+      // Verify clip is exactly 10 seconds
+      const segStat = fs.statSync(seg);
+      console.log(`  ✅ Clip ${i+1}: ${(segStat.size/1024/1024).toFixed(2)}MB`);
       
       segments.push(seg);
       try { fs.unlinkSync(raw); } catch (e) {}
       if (global.gc) global.gc();
     }
     
-    // Concat
+    // Concatenate
     const list = path.join(dir, 'list.txt');
     fs.writeFileSync(list, segments.map(f => `file '${f}'`).join('\n'));
     const silent = path.join(dir, 'silent.mp4');
@@ -140,7 +159,7 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     segments.forEach(f => { try { fs.unlinkSync(f); } catch (e) {} });
     try { fs.unlinkSync(list); } catch (e) {}
     
-    // Audio
+    // Add audio
     const output = path.join(dir, 'output.mp4');
     await runFfmpeg([
       '-i', silent, '-i', audioPath, '-c:v', 'copy', '-c:a', 'aac',
@@ -152,8 +171,9 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     try { fs.unlinkSync(audioPath); } catch (e) {}
     
     const stat = fs.statSync(output);
-    console.log(`✅ ${(stat.size/1024/1024).toFixed(2)}MB`);
+    console.log(`✅ COMPLETE | ${(stat.size/1024/1024).toFixed(2)}MB`);
     
+    req.setTimeout(300000);
     res.set({
       'Content-Type': 'video/mp4',
       'Content-Disposition': `attachment; filename="short_${Date.now()}.mp4"`,
@@ -162,6 +182,7 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     
     const stream = fs.createReadStream(output);
     stream.on('end', () => setTimeout(() => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) {} }, 60000));
+    stream.on('error', () => { if (!res.headersSent) res.status(500).end(); });
     stream.pipe(res);
     
   } catch (e) {
@@ -173,4 +194,4 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
 
 try { if (fs.existsSync(TEMP_DIR)) { fs.rmSync(TEMP_DIR, { recursive: true, force: true }); fs.mkdirSync(TEMP_DIR, { recursive: true }); } } catch (e) {}
 
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Port ${PORT} | 10s clips | Hook ready`));
