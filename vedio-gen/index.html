@@ -695,48 +695,56 @@ CRITICAL RULES:
     }
 
     // ==================== RENDER ====================
-    async function renderVideo() {
-      const validClips = videoClips.filter(c => c);
-      if (!validClips.length) return alert('Fetch clips first.');
-      if (audioEnabled && !recordedAudio) return alert('Record or disable audio.');
+async function renderVideo() {
+  const validClips = videoClips.filter(c => c);
+  if (!validClips.length) return alert('Fetch clips first.');
+  if (audioEnabled && !recordedAudio) return alert('Record or disable audio.');
 
-      const btn = document.getElementById('btnRender');
-      const status = document.getElementById('status');
-      btn.disabled = true;
-      status.innerHTML = '<span class="spinner"></span> Rendering with effects...';
-      status.className = 'status';
+  const btn = document.getElementById('btnRender');
+  const status = document.getElementById('status');
+  btn.disabled = true;
+  status.innerHTML = '<span class="spinner"></span> Rendering with effects...';
+  status.className = 'status';
 
-      try {
-        const formData = new FormData();
-        if (recordedAudio && audioEnabled) formData.append('audio', recordedAudio, 'voice.webm');
-        formData.append('clips', JSON.stringify(validClips.map(c => ({ url: c.url }))));
-        formData.append('duration', videoDuration.toString());
-        formData.append('subtitles', JSON.stringify(subtitlesEnabled ? subtitles : []));
-        
-        // NEW FIELDS
-        formData.append('introText', document.getElementById('introTextInput').value.trim());
-        formData.append('midText', document.getElementById('midTextInput').value.trim());
-        formData.append('endText', document.getElementById('endTextInput').value.trim());
+  try {
+    // Calculate adjusted duration based on ACTUAL clips
+    const ratio = validClips.length / videoClips.length;
+    const adjustedDuration = Math.round(videoDuration * ratio);
+    
+    console.log('📊 Clips:', validClips.length, '/', videoClips.length);
+    console.log('⏱ Duration:', adjustedDuration, 's');
+    console.log('⚡ Intro:', document.getElementById('introTextInput').value);
+    console.log('❓ Middle:', document.getElementById('midTextInput').value);
+    console.log('💬 End:', document.getElementById('endTextInput').value);
+    
+    const formData = new FormData();
+    if (recordedAudio && audioEnabled) formData.append('audio', recordedAudio, 'voice.webm');
+    formData.append('clips', JSON.stringify(validClips.map(c => ({ url: c.url }))));
+    formData.append('duration', adjustedDuration.toString());
+    formData.append('subtitles', JSON.stringify(subtitlesEnabled ? subtitles : []));
+    
+    // NEW FIELDS
+    formData.append('introText', document.getElementById('introTextInput').value.trim());
+    formData.append('midText', document.getElementById('midTextInput').value.trim());
+    formData.append('endText', document.getElementById('endTextInput').value.trim());
 
-        const r = await fetch('/api/render', { method: 'POST', body: formData });
-        if (!r.ok) { const e = await r.json(); throw new Error(e.error); }
+    const r = await fetch('/api/render', { method: 'POST', body: formData });
+    if (!r.ok) { const e = await r.json(); throw new Error(e.error); }
 
-        const blob = await r.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `viral_${Date.now()}.mp4`;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `viral_${Date.now()}.mp4`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 
-        status.textContent = '✅ Downloaded! Ready to go viral! 🚀';
-        status.className = 'status success';
-      } catch (e) {
-        status.textContent = `❌ ${e.message}`;
-        status.className = 'status error';
-      }
-      btn.disabled = false;
-    }
-  </script>
-</body>
-</html>
+    status.textContent = '✅ Downloaded! Ready to go viral! 🚀';
+    status.className = 'status success';
+  } catch (e) {
+    console.error('Render error:', e);
+    status.textContent = `❌ ${e.message}`;
+    status.className = 'status error';
+  }
+  btn.disabled = false;
+}
