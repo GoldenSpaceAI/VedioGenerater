@@ -53,10 +53,10 @@ function runFfmpeg(args) {
     proc.stderr.on('data', d => stderr += d.toString());
     proc.on('close', code => {
       if (code === 0) resolve();
-      else reject(new Error(`FFmpeg code ${code}: ${stderr.slice(-200)}`));
+      else reject(new Error(`FFmpeg code ${code}`));
     });
     proc.on('error', reject);
-    setTimeout(() => proc.kill('SIGKILL'), 180000);
+    setTimeout(() => proc.kill('SIGKILL'), 300000);
   });
 }
 
@@ -98,9 +98,9 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     if (!validClips.length) return res.status(400).json({ error: 'No clips' });
     
     const actualCount = validClips.length;
-    const EXACT_CLIP_DURATION = 10; // FORCE exactly 10 seconds per clip
+    const EXACT_CLIP_DURATION = 10;
     
-    console.log(`🎬 RENDER | ${actualCount} clips × ${EXACT_CLIP_DURATION}s | Hook: "${hook}"`);
+    console.log(`🎬 RENDER | ${actualCount} clips × ${EXACT_CLIP_DURATION}s`);
     
     fs.mkdirSync(dir);
     
@@ -125,41 +125,36 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
       // Build video filter
       let vf = 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920';
       
-      // ===== INTRO HOOK TEXT - First clip, 5 seconds, YELLOW, centered =====
+      // Hook text on first clip
       if (i === 0 && hook) {
-        const cleanHook = hook.replace(/'/g, "'\\''").replace(/:/g, '\\:').replace(/,/g, '').replace(/"/g, '').substring(0, 40);
-        vf += `,drawtext=text='${cleanHook}':fontcolor=yellow:fontsize=56:box=1:boxcolor=black@0.8:boxborderw=14:x=(w-text_w)/2:y=(h-text_h)/2:fontfile='${FONT_PATH}':enable='between(t,0,5)'`;
+        const cleanHook = hook.replace(/'/g, '').replace(/"/g, '').replace(/:/g, '').replace(/,/g, '').substring(0, 35);
+        vf += `,drawtext=text='${cleanHook}':fontcolor=yellow:fontsize=48:x=(w-text_w)/2:y=(h-text_h)/2`;
       }
       
-      // Enforce EXACTLY 10 seconds - trim both start and duration
       await runFfmpeg([
-        '-i', raw,
-        '-ss', '0',                    // Start from beginning
-        '-t', String(EXACT_CLIP_DURATION), // EXACTLY 10 seconds
-        '-vf', vf,
+        '-i', raw, '-ss', '0', '-t', String(EXACT_CLIP_DURATION), '-vf', vf,
         '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
         '-pix_fmt', 'yuv420p', '-r', '30', '-threads', '1',
         '-an', '-y', seg
       ]);
       
-      // Verify clip is exactly 10 seconds
-      const segStat = fs.statSync(seg);
-      console.log(`  ✅ Clip ${i+1}: ${(segStat.size/1024/1024).toFixed(2)}MB`);
+      console.log(`  ✅ ${(fs.statSync(seg).size/1024/1024).toFixed(2)}MB`);
       
       segments.push(seg);
       try { fs.unlinkSync(raw); } catch (e) {}
       if (global.gc) global.gc();
     }
     
-    // Concatenate
+    // Concat
     const list = path.join(dir, 'list.txt');
     fs.writeFileSync(list, segments.map(f => `file '${f}'`).join('\n'));
     const silent = path.join(dir, 'silent.mp4');
     await runFfmpeg(['-f', 'concat', '-safe', '0', '-i', list, '-c:v', 'copy', '-an', '-y', silent]);
     segments.forEach(f => { try { fs.unlinkSync(f); } catch (e) {} });
     try { fs.unlinkSync(list); } catch (e) {}
+    if (global.gc) global.gc();
     
-    // Add audio
+    // Audio
     const output = path.join(dir, 'output.mp4');
     await runFfmpeg([
       '-i', silent, '-i', audioPath, '-c:v', 'copy', '-c:a', 'aac',
@@ -171,9 +166,12 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     try { fs.unlinkSync(audioPath); } catch (e) {}
     
     const stat = fs.statSync(output);
-    console.log(`✅ COMPLETE | ${(stat.size/1024/1024).toFixed(2)}MB`);
+    console.log(`✅ COMPLETE | ${(stat.size/1024/1024).toFixed(2)}MB | Streaming...`);
     
-    req.setTimeout(300000);
+    // Set long timeout for large files
+    req.setTimeout(600000);
+    res.setTimeout(600000);
+    
     res.set({
       'Content-Type': 'video/mp4',
       'Content-Disposition': `attachment; filename="short_${Date.now()}.mp4"`,
@@ -181,8 +179,24 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     });
     
     const stream = fs.createReadStream(output);
-    stream.on('end', () => setTimeout(() => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) {} }, 60000));
-    stream.on('error', () => { if (!res.headersSent) res.status(500).end(); });
+    
+    stream.on('error', (err) => {
+      console.error('❌ Stream error:', err.message);
+      try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) {}
+      if (!res.headersSent) res.status(500).end();
+    });
+    
+    stream.on('end', () => {
+      console.log('📤 Download complete');
+      setTimeout(() => {
+        try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) {}
+      }, 60000);
+    });
+    
+    res.on('close', () => {
+      console.log('📤 Client disconnected (may have finished download)');
+    });
+    
     stream.pipe(res);
     
   } catch (e) {
@@ -194,4 +208,4 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
 
 try { if (fs.existsSync(TEMP_DIR)) { fs.rmSync(TEMP_DIR, { recursive: true, force: true }); fs.mkdirSync(TEMP_DIR, { recursive: true }); } } catch (e) {}
 
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Port ${PORT} | 10s clips | Hook ready`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Port ${PORT}`));
