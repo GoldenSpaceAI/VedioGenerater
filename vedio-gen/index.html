@@ -441,7 +441,7 @@
 
   <div class="countdown" id="countdown"></div>
 
-  <script>
+ <script>
     // ==================== STATE ====================
     let scenes = [];
     let videoClips = [];
@@ -542,23 +542,19 @@
                 role: 'system',
                 content: `You are a Pexels video search expert. Read the script below and return EXACTLY ${numScenes} search queries.
 
-CRITICAL RULES:
-- ACTUALLY READ the script content
-- If script is about octopuses → "cute octopus swimming", "octopus underwater ocean"
-- If script is about black holes → "black hole space", "nebula galaxy stars"
-- If script is about the Sun → "burning sun solar flare", "sun space NASA"
-- Match the EXACT subject described in the text
-- Each line: 2-5 descriptive words, highly searchable on Pexels
-- Output ONLY the queries, one per line
-- NO numbers, NO bullets, NO extra text`
+RULES:
+- ACTUALLY READ the script
+- Match the EXACT subject
+- Each line: 2-5 words, searchable on Pexels
+- Output ONLY queries, one per line
+- NO numbers, NO bullets`
               },
-              { role: 'user', content: `SCRIPT:\n\n${script}\n\nReturn ${numScenes} Pexels search queries:` }
+              { role: 'user', content: `SCRIPT:\n\n${script}\n\nReturn ${numScenes} queries:` }
             ]
           })
         });
         
         const d = await r.json();
-        console.log('AI Response:', d);
         
         if (d.choices?.[0]) {
           const content = d.choices[0].message.content;
@@ -578,12 +574,12 @@ CRITICAL RULES:
           renderSubPreview();
           document.getElementById('btnFetch').disabled = false;
           updateRecordBtn();
-          status.innerHTML = `✅ AI found ${scenes.length} scenes from your script`;
+          status.innerHTML = `✅ ${scenes.length} scenes extracted`;
           status.className = 'status success';
         }
       } catch (e) {
-        console.error('Extract error:', e);
-        status.textContent = '❌ Failed. Check console.';
+        console.error('Error:', e);
+        status.textContent = '❌ Failed';
         status.className = 'status error';
       }
       btn.disabled = false;
@@ -632,10 +628,10 @@ CRITICAL RULES:
 
       if (count > 0) {
         updateRecordBtn();
-        status.textContent = `✅ ${count}/${scenes.length} clips ready`;
+        status.textContent = `✅ ${count}/${scenes.length} clips`;
         status.className = 'status success';
       } else {
-        status.textContent = '❌ No clips found. Try different scenes.';
+        status.textContent = '❌ No clips found';
         status.className = 'status error';
       }
       btn.disabled = false;
@@ -695,56 +691,51 @@ CRITICAL RULES:
     }
 
     // ==================== RENDER ====================
-async function renderVideo() {
-  const validClips = videoClips.filter(c => c);
-  if (!validClips.length) return alert('Fetch clips first.');
-  if (audioEnabled && !recordedAudio) return alert('Record or disable audio.');
+    async function renderVideo() {
+      const validClips = videoClips.filter(c => c);
+      if (!validClips.length) return alert('Fetch clips first.');
+      if (audioEnabled && !recordedAudio) return alert('Record or disable audio.');
 
-  const btn = document.getElementById('btnRender');
-  const status = document.getElementById('status');
-  btn.disabled = true;
-  status.innerHTML = '<span class="spinner"></span> Rendering with effects...';
-  status.className = 'status';
+      const btn = document.getElementById('btnRender');
+      const status = document.getElementById('status');
+      btn.disabled = true;
+      status.innerHTML = '<span class="spinner"></span> Rendering...';
+      status.className = 'status';
 
-  try {
-    // Calculate adjusted duration based on ACTUAL clips
-    const ratio = validClips.length / videoClips.length;
-    const adjustedDuration = Math.round(videoDuration * ratio);
-    
-    console.log('📊 Clips:', validClips.length, '/', videoClips.length);
-    console.log('⏱ Duration:', adjustedDuration, 's');
-    console.log('⚡ Intro:', document.getElementById('introTextInput').value);
-    console.log('❓ Middle:', document.getElementById('midTextInput').value);
-    console.log('💬 End:', document.getElementById('endTextInput').value);
-    
-    const formData = new FormData();
-    if (recordedAudio && audioEnabled) formData.append('audio', recordedAudio, 'voice.webm');
-    formData.append('clips', JSON.stringify(validClips.map(c => ({ url: c.url }))));
-    formData.append('duration', adjustedDuration.toString());
-    formData.append('subtitles', JSON.stringify(subtitlesEnabled ? subtitles : []));
-    
-    // NEW FIELDS
-    formData.append('introText', document.getElementById('introTextInput').value.trim());
-    formData.append('midText', document.getElementById('midTextInput').value.trim());
-    formData.append('endText', document.getElementById('endTextInput').value.trim());
+      try {
+        const ratio = validClips.length / videoClips.length;
+        const adjustedDuration = Math.round(videoDuration * ratio);
+        
+        console.log('📊 Clips:', validClips.length, '/', videoClips.length);
+        console.log('⏱ Duration:', adjustedDuration, 's');
+        
+        const formData = new FormData();
+        if (recordedAudio && audioEnabled) formData.append('audio', recordedAudio, 'voice.webm');
+        formData.append('clips', JSON.stringify(validClips.map(c => ({ url: c.url }))));
+        formData.append('duration', adjustedDuration.toString());
+        formData.append('subtitles', JSON.stringify(subtitlesEnabled ? subtitles : []));
+        formData.append('introText', document.getElementById('introTextInput').value.trim());
+        formData.append('midText', document.getElementById('midTextInput').value.trim());
+        formData.append('endText', document.getElementById('endTextInput').value.trim());
 
-    const r = await fetch('/api/render', { method: 'POST', body: formData });
-    if (!r.ok) { const e = await r.json(); throw new Error(e.error); }
+        const r = await fetch('/api/render', { method: 'POST', body: formData });
+        if (!r.ok) { const e = await r.json(); throw new Error(e.error); }
 
-    const blob = await r.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `viral_${Date.now()}.mp4`;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `viral_${Date.now()}.mp4`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(url);
 
-    status.textContent = '✅ Downloaded! Ready to go viral! 🚀';
-    status.className = 'status success';
-  } catch (e) {
-    console.error('Render error:', e);
-    status.textContent = `❌ ${e.message}`;
-    status.className = 'status error';
-  }
-  btn.disabled = false;
-}
+        status.textContent = '✅ Downloaded! 🚀';
+        status.className = 'status success';
+      } catch (e) {
+        console.error(e);
+        status.textContent = `❌ ${e.message}`;
+        status.className = 'status error';
+      }
+      btn.disabled = false;
+    }
+</script>
