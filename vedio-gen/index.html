@@ -16,6 +16,7 @@
       --text-muted: #777;
       --danger: #c0392b;
       --success: #27ae60;
+      --blue: #3b82f6;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -55,26 +56,16 @@
       animation: pulse 2s infinite;
     }
 
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
-    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
     .chat-header h3 {
-      font-size: 13px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      color: var(--gold);
+      font-size: 13px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 2px; color: var(--gold);
     }
 
     .chat-messages {
-      flex: 1;
-      overflow-y: auto;
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
+      flex: 1; overflow-y: auto; padding: 16px;
+      display: flex; flex-direction: column; gap: 12px;
     }
 
     .chat-messages::-webkit-scrollbar { width: 3px; }
@@ -82,83 +73,51 @@
     .chat-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
     .message {
-      max-width: 88%;
-      padding: 12px 16px;
-      border-radius: 14px;
-      font-size: 12.5px;
-      line-height: 1.6;
-      word-wrap: break-word;
+      max-width: 88%; padding: 12px 16px; border-radius: 14px;
+      font-size: 12.5px; line-height: 1.6; word-wrap: break-word;
       animation: fadeIn 0.2s ease;
     }
 
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
 
     .message.user {
       background: linear-gradient(135deg, #1a1a1a, #1f1f1f);
-      align-self: flex-end;
-      border: 1px solid #333;
+      align-self: flex-end; border: 1px solid #333;
       border-radius: 14px 14px 4px 14px;
     }
 
     .message.assistant {
       background: linear-gradient(135deg, #151515, #1a1a1a);
-      align-self: flex-start;
-      border: 1px solid #2a2a2a;
-      border-radius: 14px 14px 14px 4px;
-      border-left: 2px solid var(--gold-dark);
+      align-self: flex-start; border: 1px solid #2a2a2a;
+      border-radius: 14px 14px 14px 4px; border-left: 2px solid var(--gold-dark);
     }
 
     .chat-input-area {
-      padding: 14px 16px;
-      border-top: 1px solid var(--border);
-      display: flex;
-      gap: 8px;
-      background: rgba(0,0,0,0.2);
+      padding: 14px 16px; border-top: 1px solid var(--border);
+      display: flex; gap: 8px; background: rgba(0,0,0,0.2);
     }
 
     .chat-input-area input {
-      flex: 1;
-      padding: 11px 16px;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      color: #fff;
-      border-radius: 24px;
-      font-size: 12.5px;
-      outline: none;
-      transition: border 0.2s;
+      flex: 1; padding: 11px 16px; background: var(--bg);
+      border: 1px solid var(--border); color: #fff; border-radius: 24px;
+      font-size: 12.5px; outline: none; transition: border 0.2s;
     }
 
     .chat-input-area input:focus { border-color: var(--gold-dark); }
     .chat-input-area input::placeholder { color: #444; }
 
     .btn-send {
-      width: 40px; height: 40px;
-      border-radius: 50%;
+      width: 40px; height: 40px; border-radius: 50%;
       background: linear-gradient(135deg, var(--gold-dark), var(--gold));
-      color: #000;
-      border: none;
-      cursor: pointer;
-      font-size: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: transform 0.15s, box-shadow 0.15s;
-      flex-shrink: 0;
+      color: #000; border: none; cursor: pointer; font-size: 16px;
+      display: flex; align-items: center; justify-content: center;
+      transition: transform 0.15s, box-shadow 0.15s; flex-shrink: 0;
     }
 
-    .btn-send:hover {
-      transform: scale(1.05);
-      box-shadow: 0 0 20px rgba(212, 165, 58, 0.3);
-    }
+    .btn-send:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(212,165,58,0.3); }
 
     .video-panel {
-      width: 70%;
-      display: flex;
-      flex-direction: column;
-      overflow-y: auto;
+      width: 70%; display: flex; flex-direction: column; overflow-y: auto;
       padding: 28px 32px;
       background: radial-gradient(ellipse at top right, #0f0f0f 0%, var(--bg) 60%);
     }
@@ -167,277 +126,177 @@
     .video-panel::-webkit-scrollbar-track { background: transparent; }
     .video-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 28px;
-    }
+    .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
 
     .brand-icon {
       width: 28px; height: 28px;
       background: linear-gradient(135deg, var(--gold-dark), var(--gold));
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
+      border-radius: 6px; display: flex; align-items: center;
+      justify-content: center; font-size: 14px;
     }
 
-    .brand h2 {
-      font-size: 15px;
-      font-weight: 700;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-    }
-
+    .brand h2 { font-size: 15px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
     .brand h2 span { color: var(--gold); }
 
+    /* MODE SELECTOR */
+    .mode-selector {
+      display: flex; gap: 8px; margin-bottom: 20px;
+      background: var(--surface); border-radius: 10px; padding: 4px;
+      border: 1px solid var(--border);
+    }
+
+    .mode-btn {
+      flex: 1; padding: 10px 16px; border: none; border-radius: 8px;
+      cursor: pointer; font-weight: 600; font-size: 12px;
+      text-transform: uppercase; letter-spacing: 1px;
+      transition: all 0.2s; font-family: inherit;
+      background: transparent; color: var(--text-muted);
+    }
+
+    .mode-btn.active {
+      background: linear-gradient(135deg, var(--gold-dark), var(--gold));
+      color: #000;
+    }
+
+    .mode-btn:hover:not(.active) { color: var(--text); }
+
     .section-label {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 3px;
-      color: var(--gold);
-      margin-bottom: 8px;
-      margin-top: 24px;
-      font-weight: 600;
+      font-size: 10px; text-transform: uppercase; letter-spacing: 3px;
+      color: var(--gold); margin-bottom: 8px; margin-top: 20px; font-weight: 600;
     }
 
     .section-label:first-of-type { margin-top: 0; }
 
     textarea {
-      width: 100%;
-      padding: 16px 18px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      color: #ddd;
-      border-radius: 10px;
-      font-size: 13.5px;
-      resize: vertical;
-      min-height: 110px;
-      font-family: inherit;
-      outline: none;
-      transition: border 0.2s;
-      line-height: 1.6;
+      width: 100%; padding: 16px 18px; background: var(--surface);
+      border: 1px solid var(--border); color: #ddd; border-radius: 10px;
+      font-size: 13.5px; resize: vertical; min-height: 110px;
+      font-family: inherit; outline: none; transition: border 0.2s; line-height: 1.6;
     }
 
     textarea:focus { border-color: var(--gold-dark); }
     textarea::placeholder { color: #3a3a3a; }
 
     .info-row {
-      display: flex;
-      gap: 16px;
-      align-items: center;
-      flex-wrap: wrap;
-      margin-top: 14px;
+      display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 12px;
     }
 
     .stat-badge {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      padding: 10px 18px;
-      border-radius: 24px;
-      font-size: 12px;
-      color: #aaa;
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      background: var(--surface); border: 1px solid var(--border);
+      padding: 8px 14px; border-radius: 20px; font-size: 11px;
+      color: #aaa; display: flex; align-items: center; gap: 6px;
     }
 
-    .stat-badge .value {
-      color: var(--gold-light);
-      font-weight: 600;
-    }
+    .stat-badge .value { color: var(--gold-light); font-weight: 600; }
 
-    .scene-list {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-top: 4px;
-    }
+    .scene-list { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
 
     .scene-item {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px 16px;
-      font-size: 12px;
-      color: #999;
-      display: flex;
-      align-items: center;
-      gap: 10px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px 16px; font-size: 12px;
+      color: #999; display: flex; align-items: center; gap: 10px;
     }
 
-    .scene-item.found {
-      border-left: 3px solid var(--gold);
-      color: #ccc;
-    }
+    .scene-item.found { border-left: 3px solid var(--gold); color: #ccc; }
 
     .scene-item .scene-num {
-      width: 22px; height: 22px;
-      border-radius: 50%;
-      background: var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 10px;
-      font-weight: 700;
-      color: #888;
-      flex-shrink: 0;
+      width: 22px; height: 22px; border-radius: 50%;
+      background: var(--border); display: flex; align-items: center;
+      justify-content: center; font-size: 10px; font-weight: 700;
+      color: #888; flex-shrink: 0;
     }
 
-    .scene-item.found .scene-num {
-      background: var(--gold-dark);
-      color: #000;
-    }
+    .scene-item.found .scene-num { background: var(--gold-dark); color: #000; }
 
     .status-dot {
-      width: 7px; height: 7px;
-      border-radius: 50%;
-      margin-left: auto;
+      width: 7px; height: 7px; border-radius: 50%; margin-left: auto;
     }
 
     .status-dot.pending { background: #444; }
     .status-dot.fetched { background: var(--gold); }
     .status-dot.failed { background: var(--danger); }
 
-    .btn-row {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-top: 20px;
-    }
+    .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
 
     .btn {
-      padding: 12px 22px;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      transition: all 0.15s;
-      font-family: inherit;
+      padding: 10px 18px; border: none; border-radius: 8px; cursor: pointer;
+      font-weight: 600; font-size: 11px; text-transform: uppercase;
+      letter-spacing: 1px; transition: all 0.15s; font-family: inherit;
     }
 
-    .btn:disabled {
-      opacity: 0.35;
-      cursor: not-allowed;
-      transform: none !important;
-      box-shadow: none !important;
-    }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
 
     .btn-primary {
-      background: linear-gradient(135deg, var(--gold-dark), var(--gold));
-      color: #000;
+      background: linear-gradient(135deg, var(--gold-dark), var(--gold)); color: #000;
     }
 
     .btn-primary:hover:not(:disabled) {
-      box-shadow: 0 0 24px rgba(212, 165, 58, 0.25);
-      transform: translateY(-1px);
+      box-shadow: 0 0 24px rgba(212,165,58,0.25); transform: translateY(-1px);
     }
 
-    .btn-record {
-      background: var(--danger);
-      color: #fff;
-    }
+    .btn-record { background: var(--danger); color: #fff; }
+    .btn-record:hover:not(:disabled) { box-shadow: 0 0 24px rgba(192,57,43,0.4); }
+    .btn-record.recording { animation: recordPulse 1s infinite; }
 
-    .btn-record:hover:not(:disabled) {
-      box-shadow: 0 0 24px rgba(192, 57, 43, 0.4);
-    }
-
-    .btn-record.recording {
-      animation: recordPulse 1s infinite;
+    @keyframes recordPulse {
+      0%,100%{box-shadow:0 0 0 0 rgba(192,57,43,0.6)}
+      50%{box-shadow:0 0 0 12px rgba(192,57,43,0)}
     }
 
     .btn-sub-toggle {
-      background: var(--surface);
-      color: var(--text);
-      border: 1px solid var(--border);
+      background: var(--surface); color: var(--text); border: 1px solid var(--border);
     }
+    .btn-sub-toggle.active { background: var(--gold-dark); color: #000; border-color: var(--gold); }
 
-    .btn-sub-toggle.active {
-      background: var(--gold-dark);
-      color: #000;
-      border-color: var(--gold);
+    .btn-skip-audio {
+      background: var(--surface); color: var(--text-muted); border: 1px solid var(--border);
     }
-
-    @keyframes recordPulse {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(192, 57, 43, 0.6); }
-      50% { box-shadow: 0 0 0 12px rgba(192, 57, 43, 0); }
-    }
+    .btn-skip-audio.active { background: #1a3a2a; color: var(--success); border-color: var(--success); }
 
     .status-message {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-top: 14px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      min-height: 20px;
+      font-size: 12px; color: var(--text-muted); margin-top: 12px;
+      display: flex; align-items: center; gap: 8px; min-height: 20px;
     }
 
     .countdown-overlay {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      font-size: 80px;
-      font-weight: 900;
-      color: var(--gold);
-      z-index: 999;
-      display: none;
-      text-shadow: 0 0 40px rgba(212, 165, 58, 0.6);
+      position: fixed; top: 50%; left: 50%;
+      transform: translate(-50%,-50%); font-size: 80px; font-weight: 900;
+      color: var(--gold); z-index: 999; display: none;
+      text-shadow: 0 0 40px rgba(212,165,58,0.6);
     }
 
     .spinner {
-      display: inline-block;
-      width: 14px; height: 14px;
-      border: 2px solid #333;
-      border-top: 2px solid var(--gold);
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid #333; border-top: 2px solid var(--gold);
+      border-radius: 50%; animation: spin 0.7s linear infinite;
     }
 
-    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes spin { to{transform:rotate(360deg)} }
 
     .subtitle-preview {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px 16px;
-      margin-top: 8px;
-      max-height: 250px;
-      overflow-y: auto;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 14px; margin-top: 6px;
+      max-height: 180px; overflow-y: auto;
     }
 
     .subtitle-preview .sub-line {
-      display: flex;
-      gap: 12px;
-      padding: 5px 0;
-      font-size: 11px;
-      color: #aaa;
-      border-bottom: 1px solid #1a1a1a;
+      display: flex; gap: 10px; padding: 4px 0; font-size: 10px;
+      color: #aaa; border-bottom: 1px solid #1a1a1a;
     }
 
-    .sub-line .sub-time {
-      color: var(--gold);
-      font-family: monospace;
-      min-width: 75px;
-      font-size: 10px;
+    .sub-line .sub-time { color: var(--gold); font-family: monospace; min-width: 65px; font-size: 9px; }
+    .sub-line .sub-text { color: #ddd; line-height: 1.3; }
+    .sub-disabled-note { color: #555; font-style: italic; padding: 8px; text-align: center; font-size: 11px; }
+
+    .duration-slider {
+      width: 100%; margin: 8px 0;
+      -webkit-appearance: none; height: 6px;
+      background: var(--border); border-radius: 3px; outline: none;
     }
 
-    .sub-line .sub-text {
-      color: #ddd;
-      line-height: 1.4;
-    }
-
-    .sub-disabled-note {
-      color: #555;
-      font-style: italic;
-      padding: 10px;
-      text-align: center;
+    .duration-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 18px; height: 18px;
+      background: var(--gold); border-radius: 50%; cursor: pointer;
     }
 
     @media (max-width: 800px) {
@@ -449,6 +308,7 @@
 </head>
 <body>
 
+  <!-- CHAT PANEL -->
   <div class="chat-panel">
     <div class="chat-header">
       <div class="dot"></div>
@@ -456,7 +316,7 @@
     </div>
     <div class="chat-messages" id="chatMessages">
       <div class="message assistant">
-        👋 Hey Faris! I can help write scripts, titles, and hooks for your Shorts. Just tell me your topic.
+        👋 Hey Faris! I write scripts for Shorts & long videos. Tell me your topic!
       </div>
     </div>
     <div class="chat-input-area">
@@ -465,52 +325,72 @@
     </div>
   </div>
 
+  <!-- VIDEO PANEL -->
   <div class="video-panel">
     <div class="brand">
       <div class="brand-icon">⚡</div>
       <h2>Shorts <span>Forge</span></h2>
     </div>
 
-    <div class="section-label">📝 Your Script</div>
-    <textarea id="scriptInput" placeholder="Paste your voiceover script here...&#10;&#10;1. AI reads your script and extracts scenes&#10;2. Subtitles auto-generated from your words&#10;3. Record your voiceover&#10;4. Server burns subtitles into the video (toggle ON/OFF below)"></textarea>
+    <!-- MODE SELECTOR -->
+    <div class="mode-selector">
+      <button class="mode-btn active" id="modeShorts" onclick="setMode('shorts')">📱 Shorts (60s)</button>
+      <button class="mode-btn" id="modeLong" onclick="setMode('long')">📺 Long Video (6min)</button>
+    </div>
 
+    <div class="section-label">📝 Your Script</div>
+    <textarea id="scriptInput" placeholder="Paste your script here...&#10;&#10;Shorts mode: 60s max with Pexels videos&#10;Long mode: up to 6min with Pexels images + zoom effect"></textarea>
+
+    <!-- STATS -->
     <div class="info-row">
       <div class="stat-badge">🎬 Scenes: <span class="value" id="sceneCount">—</span></div>
       <div class="stat-badge">⏱ Duration: <span class="value" id="estDuration">—</span></div>
-      <div class="stat-badge">📹 Clips: <span class="value" id="clipsFound">—</span></div>
+      <div class="stat-badge" id="clipStat">📹 Clips: <span class="value" id="clipsFound">—</span></div>
       <div class="stat-badge">📝 Subs: <span class="value" id="subCount">—</span></div>
       <div class="stat-badge" id="recordingBadge" style="display:none;">🎙️ Rec: <span class="value" id="recordingTime">0s</span></div>
     </div>
-    
+
+    <!-- CONTROLS -->
     <div class="info-row" style="margin-bottom:8px;">
-      <div class="stat-badge">
-        ⚡ Sec per clip: 
-        <select id="secPerClip" style="background:transparent;border:none;color:var(--gold-light);font-weight:600;font-size:12px;cursor:pointer;outline:none;" onchange="updateStats()">
+      <div class="stat-badge" id="secPerClipBadge">
+        ⚡ Sec per scene:
+        <select id="secPerClip" style="background:transparent;border:none;color:var(--gold-light);font-weight:600;font-size:11px;cursor:pointer;outline:none;" onchange="updateStats()">
           <option value="3">3s</option>
           <option value="5" selected>5s</option>
           <option value="7">7s</option>
           <option value="10">10s</option>
         </select>
       </div>
+      <div class="stat-badge" id="durationBadge" style="display:none;">
+        🎚️ Duration: <input type="range" class="duration-slider" id="durationSlider" min="1" max="6" value="3" step="0.5" oninput="updateDurationLabel()" style="width:100px;">
+        <span class="value" id="durationLabel">3 min</span>
+      </div>
       <div class="stat-badge">
-        💬 Subtitles:
-        <button class="btn btn-sub-toggle active" id="btnSubToggle" onclick="toggleSubtitles()" style="padding:6px 14px;font-size:11px;margin-left:4px;">ON</button>
+        💬 Subs:
+        <button class="btn btn-sub-toggle active" id="btnSubToggle" onclick="toggleSubtitles()" style="padding:5px 12px;font-size:10px;">ON</button>
+      </div>
+      <div class="stat-badge" id="audioToggleBadge">
+        🎤 Audio:
+        <button class="btn btn-skip-audio" id="btnAudioToggle" onclick="toggleAudio()" style="padding:5px 12px;font-size:10px;">Record</button>
       </div>
     </div>
 
+    <!-- SCENE LIST -->
     <div class="section-label">🎞️ Scene Breakdown</div>
     <div class="scene-list" id="sceneList">
-      <div class="scene-item"><span class="scene-num">—</span> Paste your script and extract scenes first</div>
+      <div class="scene-item"><span class="scene-num">—</span> Paste script & extract scenes</div>
     </div>
 
-    <div class="section-label">💬 Subtitles Preview</div>
+    <!-- SUBTITLE PREVIEW -->
+    <div class="section-label">💬 Subtitle Preview</div>
     <div class="subtitle-preview" id="subtitlePreview">
-      <div class="sub-disabled-note">Subtitles will appear here after extracting scenes...</div>
+      <div class="sub-disabled-note">Subtitles appear here after extracting scenes...</div>
     </div>
 
+    <!-- BUTTONS -->
     <div class="btn-row">
       <button class="btn btn-primary" id="btnScenes" onclick="extractScenes()">🔍 Extract Scenes</button>
-      <button class="btn btn-primary" id="btnFetch" onclick="fetchVideos()" disabled>📥 Fetch Videos</button>
+      <button class="btn btn-primary" id="btnFetch" onclick="fetchMedia()" disabled>📥 Fetch Media</button>
       <button class="btn btn-record" id="btnRecord" onclick="startRecording()" disabled>🎙️ Record</button>
       <button class="btn btn-primary" id="btnRender" onclick="renderVideo()" disabled>🎬 Render</button>
     </div>
@@ -524,19 +404,14 @@
     // ==================== CHAT ====================
     const chatMessages = [{
       role: 'system',
-      content: 'You are a YouTube Shorts script expert. Write short, punchy scripts (max 60 seconds). Format as a single paragraph. Be creative and engaging.'
+      content: 'You are a YouTube script expert. Write engaging scripts. For Shorts: max 60 seconds, punchy. For long videos: up to 6 minutes, detailed. Format as a single paragraph.'
     }];
 
     function renderChat() {
       const c = document.getElementById('chatMessages');
-      c.innerHTML = '';
-      chatMessages.forEach(msg => {
-        if (msg.role === 'system') return;
-        const d = document.createElement('div');
-        d.className = `message ${msg.role}`;
-        d.textContent = msg.content;
-        c.appendChild(d);
-      });
+      c.innerHTML = chatMessages.filter(m => m.role !== 'system').map(m =>
+        `<div class="message ${m.role}">${m.content}</div>`
+      ).join('');
       c.scrollTop = c.scrollHeight;
     }
 
@@ -561,9 +436,8 @@
         const d = await r.json();
         document.getElementById('typing')?.remove();
         if (d.choices?.[0]) {
-          const aiResponse = d.choices[0].message.content;
-          chatMessages.push({ role: 'assistant', content: aiResponse });
-          document.getElementById('scriptInput').value = aiResponse;
+          chatMessages.push({ role: 'assistant', content: d.choices[0].message.content });
+          document.getElementById('scriptInput').value = d.choices[0].message.content;
           updateStats();
         }
       } catch (e) {
@@ -574,115 +448,134 @@
     }
 
     // ==================== STATE ====================
+    let mode = 'shorts';
     let scenes = [];
     let sceneTimestamps = [];
     let videoClips = [];
+    let imageUrls = [];
     let recordedAudio = null;
     let videoDuration = 0;
     let subtitles = [];
     let subtitlesEnabled = true;
+    let recordAudio = true;
+
+    function setMode(m) {
+      mode = m;
+      document.getElementById('modeShorts').classList.toggle('active', m === 'shorts');
+      document.getElementById('modeLong').classList.toggle('active', m === 'long');
+
+      // Show/hide relevant controls
+      document.getElementById('secPerClipBadge').style.display = m === 'shorts' ? 'flex' : 'none';
+      document.getElementById('durationBadge').style.display = m === 'long' ? 'flex' : 'none';
+      document.getElementById('audioToggleBadge').style.display = m === 'long' ? 'flex' : 'none';
+      document.getElementById('btnRecord').style.display = (m === 'shorts' || recordAudio) ? 'inline-block' : 'none';
+      document.getElementById('clipStat').innerHTML = m === 'shorts' ? '📹 Clips: <span class="value" id="clipsFound">—</span>' : '🖼️ Images: <span class="value" id="clipsFound">—</span>';
+
+      updateStats();
+      document.getElementById('status').innerHTML = `Mode: ${m === 'shorts' ? '60s Shorts (videos)' : 'Up to 6min (images + zoom)'}`;
+    }
+
+    function updateDurationLabel() {
+      const val = document.getElementById('durationSlider').value;
+      document.getElementById('durationLabel').textContent = val + ' min';
+      updateStats();
+    }
 
     function updateStats() {
       const script = document.getElementById('scriptInput').value.trim();
       const chars = script.length;
-      const dur = Math.min(60, Math.round(chars / 15));
-      videoDuration = dur || 0;
-      document.getElementById('estDuration').textContent = dur ? `${dur}s (max 60s)` : '—';
+
+      if (mode === 'shorts') {
+        const dur = Math.min(60, Math.round(chars / 15));
+        videoDuration = dur || 0;
+        document.getElementById('estDuration').textContent = dur ? `${dur}s (max 60s)` : '—';
+      } else {
+        const min = parseFloat(document.getElementById('durationSlider').value);
+        videoDuration = min * 60;
+        document.getElementById('estDuration').textContent = `${min} min (${videoDuration}s)`;
+      }
+
       document.getElementById('sceneCount').textContent = scenes.length || '—';
-      document.getElementById('clipsFound').textContent = videoClips.filter(c=>c).length || '—';
+      document.getElementById('clipsFound').textContent =
+        (mode === 'shorts' ? videoClips.filter(c => c).length : imageUrls.filter(c => c).length) || '—';
       document.getElementById('subCount').textContent = subtitlesEnabled ? (subtitles.length || '—') : 'OFF';
     }
 
     document.getElementById('scriptInput').addEventListener('input', updateStats);
 
-    // ==================== SUBTITLE TOGGLE ====================
     function toggleSubtitles() {
       subtitlesEnabled = !subtitlesEnabled;
       const btn = document.getElementById('btnSubToggle');
-      if (subtitlesEnabled) {
-        btn.textContent = 'ON';
-        btn.classList.add('active');
-      } else {
-        btn.textContent = 'OFF';
-        btn.classList.remove('active');
-      }
+      btn.textContent = subtitlesEnabled ? 'ON' : 'OFF';
+      btn.classList.toggle('active', subtitlesEnabled);
       renderSubtitlePreview();
       updateStats();
     }
 
-    // ==================== GENERATE SUBTITLES (Max 5 sec per chunk) ====================
-    function generateSubtitles(script, numClips, totalDuration) {
-      if (!subtitlesEnabled) return [];
-      
-      const words = script.split(/\s+/).filter(w => w.length > 0);
-      if (words.length === 0) return [];
-      
-      const MAX_CHUNK_DURATION = 5; // Max 5 seconds per subtitle
-      const clipDuration = totalDuration / numClips;
-      const subtitles = [];
-      
-      // Calculate how many words fit in ~5 seconds
-      // Average speaking rate: ~2-3 words per second
-      const wordsPerChunk = Math.floor(MAX_CHUNK_DURATION * 2.5);
-      
-      let currentTime = 0;
-      let wordIndex = 0;
-      
-      while (wordIndex < words.length && currentTime < totalDuration) {
-        const chunkWords = words.slice(wordIndex, wordIndex + wordsPerChunk);
-        if (chunkWords.length === 0) break;
-        
-        const text = chunkWords.join(' ');
-        const chunkDuration = Math.min(MAX_CHUNK_DURATION, totalDuration - currentTime);
-        
-        subtitles.push({
-          text: text,
-          startTime: currentTime,
-          endTime: currentTime + chunkDuration
-        });
-        
-        wordIndex += wordsPerChunk;
-        currentTime += chunkDuration;
+    function toggleAudio() {
+      recordAudio = !recordAudio;
+      const btn = document.getElementById('btnAudioToggle');
+      btn.textContent = recordAudio ? 'Record' : 'No Audio';
+      btn.classList.toggle('active', !recordAudio);
+      document.getElementById('btnRecord').style.display = recordAudio ? 'inline-block' : 'none';
+      if (!recordAudio) {
+        recordedAudio = null;
+        document.getElementById('btnRender').disabled = false;
+        document.getElementById('status').innerHTML = '🔇 Audio disabled — video will be silent';
+      } else {
+        document.getElementById('btnRender').disabled = true;
       }
-      
+    }
+
+    // ==================== GENERATE SUBTITLES ====================
+    function generateSubtitles(script, numScenes, totalDuration) {
+      if (!subtitlesEnabled) return [];
+      const words = script.split(/\s+/).filter(w => w.length > 0);
+      if (!words.length) return [];
+      const MAX_CHUNK = 5;
+      const wordsPerChunk = Math.floor(MAX_CHUNK * 2.5);
+      const subtitles = [];
+      let t = 0, i = 0;
+      while (i < words.length && t < totalDuration) {
+        const chunk = words.slice(i, i + wordsPerChunk);
+        if (!chunk.length) break;
+        const dur = Math.min(MAX_CHUNK, totalDuration - t);
+        subtitles.push({ text: chunk.join(' '), startTime: t, endTime: t + dur });
+        i += wordsPerChunk;
+        t += dur;
+      }
       return subtitles;
     }
 
     function renderSubtitlePreview() {
-      const container = document.getElementById('subtitlePreview');
-      
-      if (!subtitlesEnabled) {
-        container.innerHTML = '<div class="sub-disabled-note">🚫 Subtitles are OFF — Toggle ON to enable</div>';
-        return;
-      }
-      
-      if (subtitles.length === 0) {
-        container.innerHTML = '<div class="sub-disabled-note">No subtitles yet. Extract scenes first.</div>';
-        return;
-      }
-      
-      container.innerHTML = subtitles.map(s => `
-        <div class="sub-line">
-          <span class="sub-time">${s.startTime.toFixed(0)}s–${s.endTime.toFixed(0)}s</span>
-          <span class="sub-text">${s.text}</span>
-        </div>
-      `).join('');
+      const c = document.getElementById('subtitlePreview');
+      if (!subtitlesEnabled) { c.innerHTML = '<div class="sub-disabled-note">🚫 Subtitles OFF</div>'; return; }
+      if (!subtitles.length) { c.innerHTML = '<div class="sub-disabled-note">No subtitles yet. Extract scenes first.</div>'; return; }
+      c.innerHTML = subtitles.map(s =>
+        `<div class="sub-line"><span class="sub-time">${s.startTime.toFixed(0)}s–${s.endTime.toFixed(0)}s</span><span class="sub-text">${s.text}</span></div>`
+      ).join('');
     }
 
-    // ==================== SCENES ====================
+    // ==================== EXTRACT SCENES ====================
     async function extractScenes() {
       const script = document.getElementById('scriptInput').value.trim();
-      if (!script) return alert('Paste your script first.');
+      if (!script) return alert('Paste script first.');
       const btn = document.getElementById('btnScenes');
       const status = document.getElementById('status');
       btn.disabled = true;
       status.innerHTML = '<span class="spinner"></span> Analyzing...';
 
-      const charCount = script.length;
-      const estDuration = Math.min(60, Math.ceil(charCount / 15));
       const secPerClip = parseInt(document.getElementById('secPerClip').value) || 5;
-      const numScenes = Math.max(2, Math.min(10, Math.ceil(estDuration / secPerClip)));
-      const totalDuration = numScenes * secPerClip;
+      let numScenes, totalDuration;
+
+      if (mode === 'shorts') {
+        const estDur = Math.min(60, Math.ceil(script.length / 15));
+        numScenes = Math.max(2, Math.min(10, Math.ceil(estDur / secPerClip)));
+        totalDuration = numScenes * secPerClip;
+      } else {
+        totalDuration = parseFloat(document.getElementById('durationSlider').value) * 60;
+        numScenes = Math.max(3, Math.min(60, Math.ceil(totalDuration / 6)));
+      }
 
       try {
         const r = await fetch('/api/chat', {
@@ -690,42 +583,25 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             messages: [
-              {
-                role: 'system',
-                content: `Read this script and extract ${numScenes} video scenes that MATCH the content. Output ONE scene keyword per line (2-5 words). No numbers, no bullets. Match the actual subject of the script.`
-              },
-              { role: 'user', content: `Extract ${numScenes} scenes from:\n\n${script}` }
+              { role: 'system', content: `Extract ${numScenes} scene keywords (2-5 words each) from this script. Output ONE per line. No numbers. Match the actual subject.` },
+              { role: 'user', content: `Extract ${numScenes} scenes:\n\n${script}` }
             ]
           })
         });
         const d = await r.json();
         if (d.choices?.[0]) {
-          const content = d.choices[0].message.content;
-          console.log('AI Scenes:', content);
-          
-          const lines = content.split('\n')
+          scenes = d.choices[0].message.content.split('\n')
             .map(l => l.replace(/^\d+[\.\)]\s*/, '').replace(/^[-*]\s*/, '').trim())
-            .filter(l => l.length > 0 && l.length < 100);
-          
-          scenes = lines.slice(0, numScenes);
+            .filter(l => l.length > 0 && l.length < 100).slice(0, numScenes);
           while (scenes.length < numScenes) scenes.push('nature scenery');
-          
-          const clipDuration = parseInt(document.getElementById('secPerClip').value) || 5;
-          sceneTimestamps = scenes.map((_, i) => i * clipDuration);
-          
-          // Generate subtitles
+          sceneTimestamps = scenes.map((_, i) => i * (totalDuration / scenes.length));
           subtitles = generateSubtitles(script, scenes.length, totalDuration);
-          console.log('Subtitles:', subtitles.length, 'chunks');
-          
           renderScenes();
           renderSubtitlePreview();
           document.getElementById('btnFetch').disabled = false;
-          
-          const subMsg = subtitlesEnabled ? ` + ${subtitles.length} subtitles` : ' (subtitles OFF)';
-          status.innerHTML = `✅ ${scenes.length} scenes${subMsg}`;
+          status.innerHTML = `✅ ${scenes.length} scenes + ${subtitles.length} subs`;
         }
       } catch (e) {
-        console.error('Error:', e);
         status.innerHTML = '❌ Failed';
       }
       btn.disabled = false;
@@ -736,69 +612,79 @@
       document.getElementById('sceneList').innerHTML = scenes.map((s, i) => `
         <div class="scene-item found" id="scene-${i}">
           <span class="scene-num">${i+1}</span>
-          <input type="text" value="${s}" id="keyword-${i}" 
-            style="flex:1;background:transparent;border:none;color:#ccc;font-size:12px;outline:none;padding:4px 0;"
-            onchange="updateKeyword(${i}, this.value)">
+          <input type="text" value="${s}" id="keyword-${i}"
+            style="flex:1;background:transparent;border:none;color:#ccc;font-size:12px;outline:none;"
+            onchange="updateKeyword(${i},this.value)">
           <span class="status-dot pending" id="dot-${i}"></span>
         </div>
       `).join('');
     }
 
-    function updateKeyword(index, value) { scenes[index] = value.trim(); }
+    function updateKeyword(i, v) { scenes[i] = v.trim(); }
 
-    // ==================== PEXELS ====================
-    async function fetchVideos() {
+    // ==================== FETCH MEDIA ====================
+    async function fetchMedia() {
       if (!scenes.length) return;
       const btn = document.getElementById('btnFetch');
       const status = document.getElementById('status');
       btn.disabled = true;
-      videoClips = new Array(scenes.length).fill(null);
-      let count = 0;
 
-      for (let i = 0; i < scenes.length; i++) {
-        status.innerHTML = `<span class="spinner"></span> Clip ${i+1}/${scenes.length}: "${scenes[i]}"...`;
-        try {
-          const r = await fetch(`/api/pexels/videos?query=${encodeURIComponent(scenes[i])}&per_page=1`);
-          const d = await r.json();
-          if (d.videos?.length) {
-            const video = d.videos[0];
-            const file = video.video_files.find(f=>f.width>=1080) || video.video_files.find(f=>f.width>=720) || video.video_files[0];
-            if (file) {
-              videoClips[i] = { url: file.link, duration: video.duration, id: video.id };
+      if (mode === 'shorts') {
+        videoClips = new Array(scenes.length).fill(null);
+        imageUrls = [];
+        let count = 0;
+        for (let i = 0; i < scenes.length; i++) {
+          status.innerHTML = `<span class="spinner"></span> Video ${i+1}/${scenes.length}: "${scenes[i]}"...`;
+          try {
+            const r = await fetch(`/api/pexels/videos?query=${encodeURIComponent(scenes[i])}&per_page=1`);
+            const d = await r.json();
+            if (d.videos?.length) {
+              const v = d.videos[0];
+              const f = v.video_files.find(x => x.width >= 1080) || v.video_files.find(x => x.width >= 720) || v.video_files[0];
+              if (f) { videoClips[i] = { url: f.link, duration: v.duration, id: v.id }; count++; document.getElementById(`dot-${i}`).className = 'status-dot fetched'; }
+            }
+          } catch (e) { document.getElementById(`dot-${i}`).className = 'status-dot failed'; }
+        }
+        status.innerHTML = count > 0 ? `✅ ${count}/${scenes.length} videos` : '❌ No videos';
+      } else {
+        imageUrls = new Array(scenes.length).fill(null);
+        let count = 0;
+        for (let i = 0; i < scenes.length; i++) {
+          status.innerHTML = `<span class="spinner"></span> Image ${i+1}/${scenes.length}: "${scenes[i]}"...`;
+          try {
+            const r = await fetch(`/api/pexels/images?query=${encodeURIComponent(scenes[i])}&per_page=3`);
+            const d = await r.json();
+            if (d.photos?.length) {
+              const best = d.photos.find(p => p.height >= 1920) || d.photos[0];
+              imageUrls[i] = { url: best.src.large2x || best.src.large, id: best.id };
               count++;
               document.getElementById(`dot-${i}`).className = 'status-dot fetched';
             }
-          }
-        } catch (e) {
-          document.getElementById(`dot-${i}`).className = 'status-dot failed';
+          } catch (e) { document.getElementById(`dot-${i}`).className = 'status-dot failed'; }
         }
+        status.innerHTML = count > 0 ? `✅ ${count}/${scenes.length} images` : '❌ No images';
       }
 
-      status.innerHTML = count > 0 ? `✅ ${count}/${scenes.length} clips` : '❌ No clips found';
-      if (count > 0) document.getElementById('btnRecord').disabled = false;
+      if (mode === 'shorts' || recordAudio) {
+        document.getElementById('btnRecord').disabled = false;
+      } else {
+        document.getElementById('btnRender').disabled = false;
+      }
       btn.disabled = false;
       updateStats();
     }
 
     // ==================== RECORDING ====================
-    let mediaRecorder = null;
-    let recordingChunks = [];
-    let recordingTimer = null;
-    let recordingSeconds = 0;
+    let mediaRecorder, recordingChunks = [], recordingTimer, recordingSeconds = 0;
 
     async function startRecording() {
-      if (!videoDuration) return alert('Paste a script first.');
+      if (!videoDuration) return alert('Paste script first.');
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        
         const overlay = document.getElementById('countdown');
         overlay.style.display = 'block';
-        for (let i = 3; i > 0; i--) {
-          overlay.textContent = i;
-          await new Promise(r => setTimeout(r, 1000));
-        }
-        overlay.textContent = '🎙️';
-        await new Promise(r => setTimeout(r, 500));
+        for (let i = 3; i > 0; i--) { overlay.textContent = i; await new Promise(r => setTimeout(r, 1000)); }
+        overlay.textContent = '🎙️'; await new Promise(r => setTimeout(r, 500));
         overlay.style.display = 'none';
 
         recordingChunks = [];
@@ -810,16 +696,11 @@
           document.getElementById('btnRender').disabled = false;
           document.getElementById('status').innerHTML = `✅ Recorded (${recordingSeconds}s)`;
         };
-
         mediaRecorder.start();
-        
+
         const btn = document.getElementById('btnRecord');
-        btn.textContent = '⏺️ Recording...';
-        btn.classList.add('recording');
-        btn.onclick = stopRecording;
-        
+        btn.textContent = '⏺️ Recording...'; btn.classList.add('recording'); btn.onclick = stopRecording;
         document.getElementById('recordingBadge').style.display = 'flex';
-        
         recordingSeconds = 0;
         document.getElementById('recordingTime').textContent = '0s';
         recordingTimer = setInterval(() => {
@@ -827,68 +708,65 @@
           document.getElementById('recordingTime').textContent = `${recordingSeconds}s`;
           if (recordingSeconds >= videoDuration) stopRecording();
         }, 1000);
-
       } catch (e) {
-        document.getElementById('status').innerHTML = '❌ Microphone denied';
+        document.getElementById('status').innerHTML = '❌ Mic denied';
       }
     }
 
     function stopRecording() {
       if (mediaRecorder && mediaRecorder.state === 'recording') {
-        mediaRecorder.stop();
-        clearInterval(recordingTimer);
+        mediaRecorder.stop(); clearInterval(recordingTimer);
         const btn = document.getElementById('btnRecord');
-        btn.textContent = '🎙️ Record';
-        btn.classList.remove('recording');
-        btn.onclick = startRecording;
+        btn.textContent = '🎙️ Record'; btn.classList.remove('recording'); btn.onclick = startRecording;
         document.getElementById('recordingBadge').style.display = 'none';
       }
     }
 
     // ==================== RENDER ====================
     async function renderVideo() {
-      const validClips = videoClips.filter(c => c);
-      if (!validClips.length) return alert('No clips.');
-      if (!recordedAudio) return alert('Record first.');
-
       const btn = document.getElementById('btnRender');
       const status = document.getElementById('status');
       btn.disabled = true;
-      
-      const subsToSend = subtitlesEnabled ? subtitles : [];
+
+      if (mode === 'shorts') {
+        const valid = videoClips.filter(c => c);
+        if (!valid.length) return alert('No clips.');
+        if (recordAudio && !recordedAudio) return alert('Record first or disable audio.');
+      } else {
+        const valid = imageUrls.filter(c => c);
+        if (!valid.length) return alert('No images.');
+      }
 
       try {
-        status.innerHTML = `<span class="spinner"></span> Rendering${subsToSend.length ? ' with subtitles' : ' (no subs)'}...`;
-        
+        status.innerHTML = '<span class="spinner"></span> Rendering...';
         const formData = new FormData();
-        formData.append('audio', recordedAudio, 'voice.webm');
-        formData.append('clips', JSON.stringify(validClips.map(c => ({ url: c.url }))));
-        formData.append('duration', videoDuration.toString());
-        formData.append('subtitles', JSON.stringify(subsToSend));
 
-        const response = await fetch('/api/render', {
-          method: 'POST',
-          body: formData
-        });
-
-        if (!response.ok) {
-          const err = await response.json();
-          throw new Error(err.error || 'Render failed');
+        if (recordedAudio && recordAudio) {
+          formData.append('audio', recordedAudio, 'voice.webm');
         }
 
-        const blob = await response.blob();
+        if (mode === 'shorts') {
+          formData.append('clips', JSON.stringify(videoClips.filter(c => c).map(c => ({ url: c.url }))));
+        } else {
+          formData.append('images', JSON.stringify(imageUrls.filter(c => c).map(c => ({ url: c.url }))));
+        }
+
+        formData.append('duration', videoDuration.toString());
+        formData.append('subtitles', JSON.stringify(subtitlesEnabled ? subtitles : []));
+        formData.append('mode', mode);
+
+        const r = await fetch('/api/render', { method: 'POST', body: formData });
+        if (!r.ok) { const e = await r.json(); throw new Error(e.error); }
+
+        const blob = await r.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `short_${Date.now()}.mp4`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        a.download = `${mode}_${Date.now()}.mp4`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
         URL.revokeObjectURL(url);
-
-        status.innerHTML = `✅ Done!${subsToSend.length ? ' Subtitles burned in.' : ''}`;
+        status.innerHTML = `✅ ${mode === 'shorts' ? 'Short' : 'Video'} ready!`;
       } catch (e) {
-        console.error(e);
         status.innerHTML = `❌ ${e.message}`;
       }
       btn.disabled = false;
