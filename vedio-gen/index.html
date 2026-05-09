@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Shorts Forge — Simple</title>
+  <title>Shorts Forge — Faris</title>
   <style>
     :root {
       --bg: #000; --surface: #0d0d0d; --card: #141414;
@@ -18,8 +18,9 @@
     .container { max-width: 500px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
     .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
     .card-header { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--gold); margin-bottom: 8px; font-weight: 700; }
-    textarea { width: 100%; padding: 12px; background: var(--surface); border: 1px solid var(--border); color: #ddd; border-radius: 8px; font-size: 13px; resize: vertical; min-height: 80px; font-family: inherit; outline: none; }
-    textarea:focus { border-color: var(--gold-dark); }
+    textarea, input[type="text"] { width: 100%; padding: 12px; background: var(--surface); border: 1px solid var(--border); color: #ddd; border-radius: 8px; font-size: 13px; font-family: inherit; outline: none; }
+    textarea { resize: vertical; min-height: 80px; }
+    textarea:focus, input:focus { border-color: var(--gold-dark); }
     .btn { padding: 12px; border: none; border-radius: 25px; cursor: pointer; font-weight: 700; font-size: 12px; text-transform: uppercase; width: 100%; }
     .btn-gold { background: linear-gradient(135deg, var(--gold-dark), var(--gold)); color: #000; }
     .btn-record { background: var(--danger); color: #fff; }
@@ -39,21 +40,35 @@
     <h1>🎬 Shorts <span>Forge</span></h1>
   </div>
   <div class="container">
+    
+    <!-- SCRIPT -->
     <div class="card">
       <div class="card-header">📝 Script</div>
       <textarea id="scriptInput" placeholder="Paste your script here...&#10;6 scenes × 10 seconds each"></textarea>
     </div>
+
+    <!-- STATS -->
     <div class="stats">
       <div class="stat">🎬 <span class="val" id="sceneCount">0</span></div>
       <div class="stat">⏱ <span class="val" id="estDuration">60s</span></div>
       <div class="stat">📹 <span class="val" id="clipsFound">0</span></div>
     </div>
+
+    <!-- INTRO HOOK TEXT -->
+    <div class="card">
+      <div class="card-header">⚡ Intro Hook (First 5 Seconds)</div>
+      <input type="text" id="hookTextInput" placeholder="e.g. THE SUN IS DYING!" maxlength="40">
+    </div>
+
+    <!-- BUTTONS -->
     <button class="btn btn-gold" id="btnScenes" onclick="extractScenes()">🔍 AI Extract (6 scenes)</button>
     <button class="btn btn-gold" id="btnFetch" onclick="fetchVideos()" disabled>📥 Fetch Videos</button>
     <button class="btn btn-record" id="btnRecord" onclick="startRecording()" disabled>🎙️ Record</button>
     <button class="btn btn-gold" id="btnRender" onclick="renderVideo()" disabled>🎬 Render</button>
+    
     <div class="status" id="status">Ready</div>
   </div>
+
   <div id="countdown" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);font-size:72px;font-weight:900;color:var(--gold);z-index:999;"></div>
   
   <script>
@@ -78,7 +93,9 @@
         });
         const d = await r.json();
         if (d.choices?.[0]) {
-          scenes = d.choices[0].message.content.split('\n').map(l => l.replace(/^\d+[\.\)]\s*/, '').replace(/^[-*•]\s*/, '').trim()).filter(l => l.length > 2).slice(0, numScenes);
+          scenes = d.choices[0].message.content.split('\n')
+            .map(l => l.replace(/^\d+[\.\)]\s*/, '').replace(/^[-*•]\s*/, '').trim())
+            .filter(l => l.length > 2).slice(0, numScenes);
           while (scenes.length < numScenes) scenes.push('nature scenery');
           
           document.getElementById('sceneCount').textContent = scenes.length;
@@ -86,7 +103,10 @@
           status.innerHTML = `✅ ${scenes.length} scenes`;
           status.className = 'status success';
         }
-      } catch(e) { status.innerHTML = '❌ Failed'; status.className = 'status error'; }
+      } catch(e) { 
+        status.innerHTML = '❌ Failed'; 
+        status.className = 'status error'; 
+      }
       btn.disabled = false;
     }
 
@@ -163,6 +183,7 @@
         fd.append('audio', recordedAudio, 'voice.webm');
         fd.append('clips', JSON.stringify(valid.map(c => ({ url: c.url }))));
         fd.append('duration', '60');
+        fd.append('hookText', document.getElementById('hookTextInput').value.trim());
         
         const r = await fetch('/api/render', { method: 'POST', body: fd });
         if (!r.ok) throw new Error('Server error');
