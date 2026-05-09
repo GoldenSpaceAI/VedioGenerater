@@ -1,224 +1,792 @@
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
-const fs = require('fs');
-const https = require('https');
-const http = require('http');
-const { spawn } = require('child_process');
-const { v4: uuidv4 } = require('uuid');
-const multer = require('multer');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Shorts Forge — Faris</title>
+  <style>
+    :root {
+      --bg: #000000;
+      --surface: #0d0d0d;
+      --card: #141414;
+      --border: #222222;
+      --gold: #f5c842;
+      --gold-dark: #c49b20;
+      --text: #f0f0f0;
+      --muted: #888888;
+      --danger: #e74c3c;
+      --success: #2ecc71;
+      --accent: #ff6b35;
+    }
 
-let ffmpegPath;
-try {
-  ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
-} catch (e) {
-  ffmpegPath = 'ffmpeg';
-}
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
 
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.static(path.join(__dirname)));
+    /* HEADER */
+    .header {
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 }
-});
+    .logo {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--gold-dark), var(--gold));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
 
-const TEMP_DIR = '/tmp/video-gen';
-if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
+    .header h1 {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
 
-let FONT_PATH = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
-if (!fs.existsSync(FONT_PATH)) {
-  FONT_PATH = '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf';
-}
+    .header h1 span { color: var(--gold); }
 
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+    .header .badge {
+      margin-left: auto;
+      background: var(--card);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      color: var(--muted);
+    }
 
-app.post('/api/chat', async (req, res) => {
-  try {
-    const { messages } = req.body;
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({ model: 'gpt-4o-mini', messages, temperature: 0.7 })
-    });
-    res.json(await response.json());
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
+    .header .badge.online {
+      color: var(--success);
+      border-color: #1a3a2a;
+    }
 
-app.get('/api/pexels/videos', async (req, res) => {
-  try {
-    const { query, per_page } = req.query;
-    const r = await fetch(
-      `https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&per_page=${per_page || 1}`,
-      { headers: { 'Authorization': `${process.env.PEXELS_API_KEY}` } }
-    );
-    res.json(await r.json());
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
+    .header .badge.online::before {
+      content: '';
+      display: inline-block;
+      width: 6px; height: 6px;
+      background: var(--success);
+      border-radius: 50%;
+      margin-right: 6px;
+      animation: pulse 2s infinite;
+    }
 
-function runFfmpeg(args) {
-  return new Promise((resolve, reject) => {
-    console.log('🎬', args.join(' ').substring(0, 200));
-    const proc = spawn(ffmpegPath, args);
-    let stderr = '';
-    proc.stderr.on('data', d => stderr += d.toString());
-    proc.on('close', code => {
-      if (code === 0) resolve();
-      else { console.error('❌', stderr.slice(-400)); reject(new Error(`Code ${code}`)); }
-    });
-    proc.on('error', reject);
-    setTimeout(() => proc.kill('SIGKILL'), 300000);
-  });
-}
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
 
-function downloadFile(url, dest) {
-  return new Promise((resolve, reject) => {
-    const p = url.startsWith('https') ? https : http;
-    const file = fs.createWriteStream(dest);
-    let done = false;
-    const finish = (err) => {
-      if (done) return;
-      done = true;
-      file.close();
-      if (err) { try { fs.unlinkSync(dest); } catch (e) {} reject(err); }
-      else resolve();
-    };
-    const req = (u, r = 0) => {
-      if (r > 5) return finish(new Error('Redirects'));
-      p.get(u, res => {
-        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          return req(res.headers.location, r + 1);
+    /* MAIN CONTAINER */
+    .container {
+      flex: 1;
+      padding: 16px;
+      max-width: 600px;
+      margin: 0 auto;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* CARDS */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .card-header .icon {
+      font-size: 18px;
+    }
+
+    .card-header .label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--gold);
+      font-weight: 700;
+    }
+
+    /* TEXTAREA */
+    textarea {
+      width: 100%;
+      padding: 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: #ddd;
+      border-radius: 10px;
+      font-size: 14px;
+      resize: vertical;
+      min-height: 100px;
+      font-family: inherit;
+      outline: none;
+      transition: border 0.2s;
+      line-height: 1.5;
+    }
+
+    textarea:focus { border-color: var(--gold-dark); }
+    textarea::placeholder { color: #444; }
+
+    /* STATS ROW */
+    .stats {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .stat {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 8px 14px;
+      border-radius: 25px;
+      font-size: 11px;
+      color: #999;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+      min-width: 80px;
+      justify-content: center;
+    }
+
+    .stat .val {
+      color: var(--gold);
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    /* SCENE LIST */
+    .scene-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 250px;
+      overflow-y: auto;
+    }
+
+    .scene-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    .scene-item .num {
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      background: var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      color: #888;
+      flex-shrink: 0;
+    }
+
+    .scene-item.found .num {
+      background: var(--gold-dark);
+      color: #000;
+    }
+
+    .scene-item input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #ccc;
+      font-size: 12px;
+      outline: none;
+      padding: 4px 0;
+    }
+
+    .scene-item .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .dot.pending { background: #444; }
+    .dot.fetched { background: var(--gold); }
+    .dot.failed { background: var(--danger); }
+
+    /* SUBTITLE PREVIEW */
+    .sub-preview {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      max-height: 150px;
+      overflow-y: auto;
+      font-size: 11px;
+    }
+
+    .sub-line {
+      display: flex;
+      gap: 8px;
+      padding: 3px 0;
+      border-bottom: 1px solid #1a1a1a;
+      color: #aaa;
+    }
+
+    .sub-line .time {
+      color: var(--gold);
+      font-family: monospace;
+      font-size: 10px;
+      min-width: 55px;
+    }
+
+    /* BUTTONS */
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 12px 16px;
+      border: none;
+      border-radius: 25px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      transition: all 0.2s;
+      flex: 1;
+      min-width: 100px;
+      text-align: center;
+    }
+
+    .btn:active { transform: scale(0.96); }
+
+    .btn-gold {
+      background: linear-gradient(135deg, var(--gold-dark), var(--gold));
+      color: #000;
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: #ccc;
+    }
+
+    .btn-outline.active {
+      background: var(--gold-dark);
+      color: #000;
+      border-color: var(--gold);
+    }
+
+    .btn-record {
+      background: var(--danger);
+      color: #fff;
+    }
+
+    .btn-record.recording {
+      animation: recPulse 1s infinite;
+      background: #c0392b;
+    }
+
+    @keyframes recPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.5); }
+      50% { box-shadow: 0 0 0 14px rgba(231, 76, 60, 0); }
+    }
+
+    .btn:disabled {
+      opacity: 0.3;
+      pointer-events: none;
+    }
+
+    /* INPUTS */
+    .input-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .input-row input {
+      flex: 1;
+      padding: 12px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: #fff;
+      border-radius: 25px;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .input-row input:focus { border-color: var(--gold-dark); }
+    .input-row input::placeholder { color: #444; }
+
+    select {
+      padding: 10px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--gold);
+      border-radius: 25px;
+      font-size: 12px;
+      font-weight: 600;
+      outline: none;
+      cursor: pointer;
+    }
+
+    /* STATUS */
+    .status {
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+      padding: 8px;
+      min-height: 20px;
+    }
+
+    .status.success { color: var(--success); }
+    .status.error { color: var(--danger); }
+
+    /* COUNTDOWN */
+    .countdown {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 72px;
+      font-weight: 900;
+      color: var(--gold);
+      z-index: 999;
+      display: none;
+      text-shadow: 0 0 50px rgba(245, 200, 66, 0.5);
+      pointer-events: none;
+    }
+
+    /* SPINNER */
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid #333;
+      border-top: 2px solid var(--gold);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* MOBILE */
+    @media (max-width: 400px) {
+      .container { padding: 10px; gap: 10px; }
+      .card { padding: 12px; border-radius: 10px; }
+      .btn { padding: 10px 12px; font-size: 11px; }
+      .stats { gap: 4px; }
+      .stat { padding: 6px 10px; font-size: 10px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="logo">⚡</div>
+    <h1>Shorts <span>Forge</span></h1>
+    <div class="badge online">Ready</div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="container">
+
+    <!-- SCRIPT CARD -->
+    <div class="card">
+      <div class="card-header">
+        <span class="icon">📝</span>
+        <span class="label">Your Script</span>
+      </div>
+      <textarea id="scriptInput" placeholder="Paste your voiceover script here...&#10;&#10;AI will extract scenes & generate subtitles"></textarea>
+    </div>
+
+    <!-- STATS -->
+    <div class="stats">
+      <div class="stat">🎬 <span class="val" id="sceneCount">0</span> scenes</div>
+      <div class="stat">⏱ <span class="val" id="estDuration">0s</span></div>
+      <div class="stat">📹 <span class="val" id="clipsFound">0</span> clips</div>
+      <div class="stat">📝 <span class="val" id="subCount">0</span> subs</div>
+    </div>
+
+    <!-- CONTROLS -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <span style="font-size:11px;color:var(--muted);">Sec/scene:</span>
+      <select id="secPerClip" onchange="updateStats()">
+        <option value="3">3s</option>
+        <option value="5" selected>5s</option>
+        <option value="7">7s</option>
+      </select>
+      <button class="btn btn-outline active" id="btnSubToggle" onclick="toggleSubtitles()" style="flex:0;min-width:auto;padding:8px 14px;">💬 Subs: ON</button>
+      <button class="btn btn-outline" id="btnAudioToggle" onclick="toggleAudio()" style="flex:0;min-width:auto;padding:8px 14px;">🎤 Audio: ON</button>
+    </div>
+
+    <!-- END SCREEN TEXT -->
+    <div class="card">
+      <div class="card-header">
+        <span class="icon">💬</span>
+        <span class="label">End Screen Text</span>
+      </div>
+      <div class="input-row">
+        <input type="text" id="endTextInput" placeholder="e.g. SUBSCRIBE! 🔔" maxlength="30">
+      </div>
+    </div>
+
+    <!-- SCENE LIST -->
+    <div class="card">
+      <div class="card-header">
+        <span class="icon">🎞️</span>
+        <span class="label">Scene Breakdown</span>
+      </div>
+      <div class="scene-list" id="sceneList">
+        <div style="color:#555;font-size:12px;padding:8px;text-align:center;">⬆️ Paste script & extract scenes</div>
+      </div>
+    </div>
+
+    <!-- SUBTITLE PREVIEW -->
+    <div class="card">
+      <div class="card-header">
+        <span class="icon">📝</span>
+        <span class="label">Subtitle Preview</span>
+      </div>
+      <div class="sub-preview" id="subtitlePreview">
+        <div style="color:#555;font-size:11px;text-align:center;">Subtitles appear here...</div>
+      </div>
+    </div>
+
+    <!-- BUTTONS -->
+    <div class="btn-row">
+      <button class="btn btn-gold" id="btnScenes" onclick="extractScenes()">🔍 Extract</button>
+      <button class="btn btn-gold" id="btnFetch" onclick="fetchVideos()" disabled>📥 Fetch</button>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-record" id="btnRecord" onclick="startRecording()" disabled>🎙️ Record</button>
+      <button class="btn btn-gold" id="btnRender" onclick="renderVideo()" disabled>🎬 Render</button>
+    </div>
+
+    <!-- STATUS -->
+    <div class="status" id="status">Ready to create ✨</div>
+  </div>
+
+  <!-- COUNTDOWN OVERLAY -->
+  <div class="countdown" id="countdown"></div>
+
+  <script>
+    // ==================== STATE ====================
+    let scenes = [];
+    let videoClips = [];
+    let recordedAudio = null;
+    let videoDuration = 0;
+    let subtitles = [];
+    let subtitlesEnabled = true;
+    let audioEnabled = true;
+
+    function updateStats() {
+      const script = document.getElementById('scriptInput').value.trim();
+      const chars = script.length;
+      const dur = Math.min(60, Math.round(chars / 15));
+      videoDuration = dur || 0;
+      document.getElementById('estDuration').textContent = dur ? `${dur}s` : '0s';
+      document.getElementById('sceneCount').textContent = scenes.length;
+      document.getElementById('clipsFound').textContent = videoClips.filter(c => c).length;
+      document.getElementById('subCount').textContent = subtitlesEnabled ? subtitles.length : 'OFF';
+    }
+
+    document.getElementById('scriptInput').addEventListener('input', updateStats);
+
+    // ==================== TOGGLES ====================
+    function toggleSubtitles() {
+      subtitlesEnabled = !subtitlesEnabled;
+      const btn = document.getElementById('btnSubToggle');
+      btn.textContent = `💬 Subs: ${subtitlesEnabled ? 'ON' : 'OFF'}`;
+      btn.classList.toggle('active', subtitlesEnabled);
+      renderSubPreview();
+      updateStats();
+    }
+
+    function toggleAudio() {
+      audioEnabled = !audioEnabled;
+      const btn = document.getElementById('btnAudioToggle');
+      btn.textContent = `🎤 Audio: ${audioEnabled ? 'ON' : 'OFF'}`;
+      btn.classList.toggle('active', audioEnabled);
+      if (!audioEnabled) {
+        recordedAudio = null;
+        document.getElementById('btnRender').disabled = false;
+        document.getElementById('status').textContent = '🔇 Audio off — video will be silent';
+        document.getElementById('status').className = 'status';
+      } else {
+        document.getElementById('btnRender').disabled = !recordedAudio;
+      }
+      updateRecordBtn();
+    }
+
+    function updateRecordBtn() {
+      const btn = document.getElementById('btnRecord');
+      if (audioEnabled && scenes.length > 0) {
+        btn.disabled = false;
+      } else if (!audioEnabled) {
+        btn.disabled = true;
+        btn.textContent = '🎙️ Record';
+        btn.classList.remove('recording');
+      }
+    }
+
+    // ==================== SUBTITLES ====================
+    function generateSubtitles(script, numScenes, totalDuration) {
+      if (!subtitlesEnabled) return [];
+      const words = script.split(/\s+/).filter(w => w.length > 0);
+      if (!words.length) return [];
+      const MAX_CHUNK = 4;
+      const wordsPerChunk = Math.floor(MAX_CHUNK * 2.5);
+      const subs = [];
+      let t = 0, i = 0;
+      while (i < words.length && t < totalDuration) {
+        const chunk = words.slice(i, i + wordsPerChunk);
+        if (!chunk.length) break;
+        subs.push({ text: chunk.join(' '), startTime: t, endTime: Math.min(t + MAX_CHUNK, totalDuration) });
+        i += wordsPerChunk;
+        t += MAX_CHUNK;
+      }
+      return subs;
+    }
+
+    function renderSubPreview() {
+      const c = document.getElementById('subtitlePreview');
+      if (!subtitlesEnabled) { c.innerHTML = '<div style="color:#555;text-align:center;">🚫 Subtitles OFF</div>'; return; }
+      if (!subtitles.length) { c.innerHTML = '<div style="color:#555;text-align:center;">Extract scenes first...</div>'; return; }
+      c.innerHTML = subtitles.map(s =>
+        `<div class="sub-line"><span class="time">${s.startTime.toFixed(0)}s</span><span>${s.text}</span></div>`
+      ).join('');
+    }
+
+    // ==================== EXTRACT SCENES ====================
+    async function extractScenes() {
+      const script = document.getElementById('scriptInput').value.trim();
+      if (!script) return alert('Paste your script first.');
+      const btn = document.getElementById('btnScenes');
+      const status = document.getElementById('status');
+      btn.disabled = true;
+      status.innerHTML = '<span class="spinner"></span> Analyzing...';
+      status.className = 'status';
+
+      const secPerClip = parseInt(document.getElementById('secPerClip').value) || 5;
+      const estDur = Math.min(60, Math.ceil(script.length / 15));
+      const numScenes = Math.max(2, Math.min(10, Math.ceil(estDur / secPerClip)));
+      const totalDuration = numScenes * secPerClip;
+
+      try {
+        const r = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [
+              { role: 'system', content: `Extract exactly ${numScenes} scene keywords from this script. Output ONE per line (2-5 words). Match the actual content. No numbers.` },
+              { role: 'user', content: `Extract ${numScenes} scenes:\n\n${script}` }
+            ]
+          })
+        });
+        const d = await r.json();
+        if (d.choices?.[0]) {
+          scenes = d.choices[0].message.content.split('\n')
+            .map(l => l.replace(/^\d+[\.\)]\s*/, '').replace(/^[-*]\s*/, '').trim())
+            .filter(l => l.length > 0 && l.length < 100)
+            .slice(0, numScenes);
+          
+          // ENSURE exact number of scenes
+          while (scenes.length < numScenes) scenes.push('nature scenery');
+          scenes = scenes.slice(0, numScenes);
+          
+          subtitles = generateSubtitles(script, scenes.length, totalDuration);
+          renderScenes();
+          renderSubPreview();
+          document.getElementById('btnFetch').disabled = false;
+          updateRecordBtn();
+          status.textContent = `✅ ${scenes.length} scenes ready`;
+          status.className = 'status success';
         }
-        res.pipe(file);
-        file.on('finish', () => finish(null));
-      }).on('error', finish).setTimeout(30000, () => finish(new Error('Timeout')));
-    };
-    req(url);
-  });
-}
-
-function safeText(t) {
-  return (t || '').replace(/['"\[\]{}%;:,]/g, '').replace(/\s+/g, ' ').trim().substring(0, 60);
-}
-
-// ==================== RENDER ====================
-app.post('/api/render', upload.single('audio'), async (req, res) => {
-  const id = uuidv4();
-  const dir = path.join(TEMP_DIR, id);
-  
-  try {
-    const { clips, subtitles, endText, duration } = req.body;
-    const clipData = JSON.parse(clips || '[]');
-    const subData = subtitles ? JSON.parse(subtitles) : [];
-    const totalDuration = parseFloat(duration) || 30;
-    const endScreenText = endText || '';
-    
-    if (!clipData.length) return res.status(400).json({ error: 'No clips' });
-    
-    const hasAudio = req.file && req.file.buffer && req.file.buffer.length > 500;
-    let audioPath = null;
-    
-    fs.mkdirSync(dir);
-    
-    if (hasAudio) {
-      audioPath = path.join(dir, 'voice.webm');
-      fs.writeFileSync(audioPath, req.file.buffer);
-    } else {
-      // Generate silence
-      audioPath = path.join(dir, 'silence.webm');
-      await runFfmpeg(['-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo', '-t', String(totalDuration), '-c:a', 'libopus', '-y', audioPath]);
-    }
-    
-    const clipDuration = totalDuration / clipData.length;
-    const segments = [];
-    
-    for (let i = 0; i < clipData.length; i++) {
-      console.log(`📹 ${i+1}/${clipData.length}`);
-      const raw = path.join(dir, `r${i}.mp4`);
-      const seg = path.join(dir, `s${i}.mp4`);
-      
-      await downloadFile(clipData[i].url, raw);
-      
-      // Build filter
-      const cStart = i * clipDuration;
-      const cEnd = (i + 1) * clipDuration;
-      const cSubs = subData.filter(s => parseFloat(s.startTime) >= cStart && parseFloat(s.startTime) < cEnd);
-      const subText = safeText(cSubs.map(s => s.text).join(' '));
-      
-      let vf = 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920';
-      
-      // Subtitles - TOP area, very visible
-      if (subText && subText.length > 1) {
-        const esc = subText.replace(/'/g, "'\\''");
-        vf += `,drawtext=text='${esc}':fontcolor=white:fontsize=52:box=1:boxcolor=black@0.7:boxborderw=12:x=(w-text_w)/2:y=h*0.08:fontfile='${FONT_PATH}'`;
+      } catch (e) {
+        status.textContent = '❌ Failed to extract scenes';
+        status.className = 'status error';
       }
-      
-      // End screen text on LAST clip
-      if (i === clipData.length - 1 && endScreenText) {
-        const escEnd = safeText(endScreenText).replace(/'/g, "'\\''");
-        vf += `,drawtext=text='${escEnd}':fontcolor=yellow:fontsize=64:box=1:boxcolor=black@0.8:boxborderw=16:x=(w-text_w)/2:y=(h-text_h)/2:fontfile='${FONT_PATH}'`;
-      }
-      
-      await runFfmpeg([
-        '-i', raw, '-t', String(clipDuration), '-vf', vf,
-        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
-        '-pix_fmt', 'yuv420p', '-profile:v', 'main', '-level', '4.0',
-        '-r', '30', '-threads', '1', '-an', '-y', seg
-      ]);
-      
-      segments.push(seg);
-      try { fs.unlinkSync(raw); } catch (e) {}
-      if (global.gc) global.gc();
+      btn.disabled = false;
+      updateStats();
     }
-    
-    // Concat
-    const list = path.join(dir, 'list.txt');
-    fs.writeFileSync(list, segments.map(f => `file '${f}'`).join('\n'));
-    const silent = path.join(dir, 'silent.mp4');
-    await runFfmpeg(['-f', 'concat', '-safe', '0', '-i', list, '-c:v', 'copy', '-an', '-y', silent]);
-    segments.forEach(f => { try { fs.unlinkSync(f); } catch (e) {} });
-    try { fs.unlinkSync(list); } catch (e) {}
-    
-    // Add audio
-    const output = path.join(dir, 'output.mp4');
-    await runFfmpeg([
-      '-i', silent, '-i', audioPath, '-c:v', 'copy', '-c:a', 'aac',
-      '-b:a', '192k', '-ar', '44100', '-ac', '2', '-threads', '1',
-      '-movflags', '+faststart', '-shortest', '-y', output
-    ]);
-    
-    try { fs.unlinkSync(silent); } catch (e) {}
-    try { fs.unlinkSync(audioPath); } catch (e) {}
-    
-    const stat = fs.statSync(output);
-    res.set({
-      'Content-Type': 'video/mp4',
-      'Content-Disposition': `attachment; filename="short_${Date.now()}.mp4"`,
-      'Content-Length': stat.size
-    });
-    
-    const stream = fs.createReadStream(output);
-    stream.on('end', () => setTimeout(() => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) {} }, 60000));
-    stream.pipe(res);
-    
-  } catch (e) {
-    console.error('❌', e.message);
-    try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) {}
-    if (!res.headersSent) res.status(500).json({ error: e.message });
-  }
-});
 
-try { if (fs.existsSync(TEMP_DIR)) { fs.rmSync(TEMP_DIR, { recursive: true, force: true }); fs.mkdirSync(TEMP_DIR, { recursive: true }); } } catch (e) {}
+    function renderScenes() {
+      document.getElementById('sceneList').innerHTML = scenes.map((s, i) => `
+        <div class="scene-item" id="scene-${i}">
+          <span class="num">${i+1}</span>
+          <input type="text" value="${s}" id="keyword-${i}" onchange="updateKeyword(${i},this.value)">
+          <span class="dot pending" id="dot-${i}"></span>
+        </div>
+      `).join('');
+    }
 
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 ${PORT}`));
+    function updateKeyword(i, v) { scenes[i] = v.trim(); }
+
+    // ==================== FETCH VIDEOS ====================
+    async function fetchVideos() {
+      if (!scenes.length) return;
+      const btn = document.getElementById('btnFetch');
+      const status = document.getElementById('status');
+      btn.disabled = true;
+      videoClips = new Array(scenes.length).fill(null);
+      let count = 0;
+
+      for (let i = 0; i < scenes.length; i++) {
+        status.innerHTML = `<span class="spinner"></span> Fetching ${i+1}/${scenes.length}...`;
+        status.className = 'status';
+        try {
+          const r = await fetch(`/api/pexels/videos?query=${encodeURIComponent(scenes[i])}&per_page=1`);
+          const d = await r.json();
+          if (d.videos?.length) {
+            const v = d.videos[0];
+            const f = v.video_files.find(x => x.width >= 1080) || v.video_files.find(x => x.width >= 720) || v.video_files[0];
+            if (f) {
+              videoClips[i] = { url: f.link, duration: v.duration };
+              count++;
+              document.getElementById(`dot-${i}`).className = 'dot fetched';
+              document.getElementById(`scene-${i}`).classList.add('found');
+            }
+          }
+        } catch (e) {
+          document.getElementById(`dot-${i}`).className = 'dot failed';
+        }
+      }
+
+      if (count > 0) {
+        updateRecordBtn();
+        status.textContent = `✅ ${count}/${scenes.length} clips fetched`;
+        status.className = 'status success';
+      } else {
+        status.textContent = '❌ No clips found';
+        status.className = 'status error';
+      }
+      btn.disabled = false;
+      updateStats();
+    }
+
+    // ==================== RECORDING ====================
+    let mediaRecorder, recordingChunks = [], recordingTimer, recordingSeconds = 0;
+
+    async function startRecording() {
+      if (!videoDuration) return alert('Paste script first.');
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        
+        const overlay = document.getElementById('countdown');
+        overlay.style.display = 'block';
+        for (let i = 3; i > 0; i--) { overlay.textContent = i; await new Promise(r => setTimeout(r, 1000)); }
+        overlay.textContent = '🎙️'; await new Promise(r => setTimeout(r, 500));
+        overlay.style.display = 'none';
+
+        recordingChunks = [];
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+        mediaRecorder.ondataavailable = e => recordingChunks.push(e.data);
+        mediaRecorder.onstop = () => {
+          recordedAudio = new Blob(recordingChunks, { type: 'audio/webm' });
+          stream.getTracks().forEach(t => t.stop());
+          document.getElementById('btnRender').disabled = false;
+          document.getElementById('status').textContent = `✅ Recorded (${recordingSeconds}s)`;
+          document.getElementById('status').className = 'status success';
+        };
+        mediaRecorder.start();
+
+        const btn = document.getElementById('btnRecord');
+        btn.textContent = '⏺️ Stop'; btn.classList.add('recording'); btn.onclick = stopRecording;
+
+        recordingSeconds = 0;
+        recordingTimer = setInterval(() => {
+          recordingSeconds++;
+          if (recordingSeconds >= videoDuration) stopRecording();
+        }, 1000);
+      } catch (e) {
+        document.getElementById('status').textContent = '❌ Mic denied';
+        document.getElementById('status').className = 'status error';
+      }
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        clearInterval(recordingTimer);
+        const btn = document.getElementById('btnRecord');
+        btn.textContent = '🎙️ Record'; btn.classList.remove('recording'); btn.onclick = startRecording;
+      }
+    }
+
+    // ==================== RENDER ====================
+    async function renderVideo() {
+      const validClips = videoClips.filter(c => c);
+      if (!validClips.length) return alert('No clips. Fetch first.');
+      if (audioEnabled && !recordedAudio) return alert('Record first or disable audio.');
+
+      const btn = document.getElementById('btnRender');
+      const status = document.getElementById('status');
+      btn.disabled = true;
+      status.innerHTML = '<span class="spinner"></span> Rendering...';
+      status.className = 'status';
+
+      try {
+        const formData = new FormData();
+        
+        if (recordedAudio && audioEnabled) {
+          formData.append('audio', recordedAudio, 'voice.webm');
+        }
+        
+        formData.append('clips', JSON.stringify(validClips.map(c => ({ url: c.url }))));
+        formData.append('duration', videoDuration.toString());
+        formData.append('subtitles', JSON.stringify(subtitlesEnabled ? subtitles : []));
+        formData.append('endText', document.getElementById('endTextInput').value.trim());
+
+        const r = await fetch('/api/render', { method: 'POST', body: formData });
+        if (!r.ok) { const e = await r.json(); throw new Error(e.error); }
+
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `short_${Date.now()}.mp4`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        status.textContent = '✅ Downloaded! Ready for YouTube';
+        status.className = 'status success';
+      } catch (e) {
+        status.textContent = `❌ ${e.message}`;
+        status.className = 'status error';
+      }
+      btn.disabled = false;
+    }
+  </script>
+</body>
+</html>
