@@ -37,16 +37,15 @@
 <body>
   <div class="header">
     <h1>🎬 Shorts <span>Forge</span></h1>
-    <a href="/images" style="margin-left:auto;color:var(--gold);font-size:12px;text-decoration:none;">🖼️ Image Tool →</a>
   </div>
   <div class="container">
     <div class="card">
       <div class="card-header">📝 Script</div>
-      <textarea id="scriptInput" placeholder="Paste your script...&#10;Fixed 10s per clip, 6 clips max"></textarea>
+      <textarea id="scriptInput" placeholder="Paste your script here...&#10;6 scenes × 10 seconds each"></textarea>
     </div>
     <div class="stats">
       <div class="stat">🎬 <span class="val" id="sceneCount">0</span></div>
-      <div class="stat">⏱ <span class="val" id="estDuration">0s</span></div>
+      <div class="stat">⏱ <span class="val" id="estDuration">60s</span></div>
       <div class="stat">📹 <span class="val" id="clipsFound">0</span></div>
     </div>
     <button class="btn btn-gold" id="btnScenes" onclick="extractScenes()">🔍 AI Extract (6 scenes)</button>
@@ -58,13 +57,7 @@
   <div id="countdown" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);font-size:72px;font-weight:900;color:var(--gold);z-index:999;"></div>
   
   <script>
-    let scenes = [], videoClips = [], recordedAudio = null, videoDuration = 0, subtitles = [];
-    
-    document.getElementById('scriptInput').addEventListener('input', function() {
-      const dur = Math.min(60, Math.round(this.value.length / 15));
-      videoDuration = dur || 0;
-      document.getElementById('estDuration').textContent = dur ? `${dur}s` : '0s';
-    });
+    let scenes = [], videoClips = [], recordedAudio = null;
 
     async function extractScenes() {
       const script = document.getElementById('scriptInput').value.trim();
@@ -73,8 +66,7 @@
       btn.disabled = true;
       status.innerHTML = '<span class="spinner"></span> AI reading...';
       
-      const numScenes = 2;
-      const totalDuration = numScenes * 10;
+      const numScenes = 6;
       
       try {
         const r = await fetch('/api/chat', {
@@ -88,13 +80,6 @@
         if (d.choices?.[0]) {
           scenes = d.choices[0].message.content.split('\n').map(l => l.replace(/^\d+[\.\)]\s*/, '').replace(/^[-*•]\s*/, '').trim()).filter(l => l.length > 2).slice(0, numScenes);
           while (scenes.length < numScenes) scenes.push('nature scenery');
-          
-          const words = script.split(/\s+/);
-          subtitles = [];
-          for (let i = 0; i < numScenes; i++) {
-            const chunk = words.slice(i * 10, (i+1) * 10).join(' ');
-            if (chunk) subtitles.push({ text: chunk, startTime: i*10, endTime: (i+1)*10 });
-          }
           
           document.getElementById('sceneCount').textContent = scenes.length;
           document.getElementById('btnFetch').disabled = false;
@@ -152,7 +137,7 @@
       mediaRecorder.start();
       
       const btn = document.getElementById('btnRecord');
-      btn.textContent = '⏺️ Stop'; btn.classList.add('recording'); btn.onclick = stopRecording;
+      btn.textContent = '⏺️ Stop'; btn.onclick = stopRecording;
       
       recSeconds = 0;
       recTimer = setInterval(() => { recSeconds++; if (recSeconds >= 60) stopRecording(); }, 1000);
@@ -161,7 +146,7 @@
     function stopRecording() {
       if (mediaRecorder) { mediaRecorder.stop(); clearInterval(recTimer); }
       const btn = document.getElementById('btnRecord');
-      btn.textContent = '🎙️ Record'; btn.classList.remove('recording'); btn.onclick = startRecording;
+      btn.textContent = '🎙️ Record'; btn.onclick = startRecording;
     }
 
     async function renderVideo() {
@@ -178,9 +163,8 @@
         fd.append('audio', recordedAudio, 'voice.webm');
         fd.append('clips', JSON.stringify(valid.map(c => ({ url: c.url }))));
         fd.append('duration', '60');
-        fd.append('subtitles', JSON.stringify(subtitles));
         
-        const r = await fetch('/api/render', { method: 'POST', body: fd, signal: AbortSignal.timeout(300000) });
+        const r = await fetch('/api/render', { method: 'POST', body: fd });
         if (!r.ok) throw new Error('Server error');
         
         const blob = await r.blob();
