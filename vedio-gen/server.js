@@ -145,15 +145,15 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
         vf += `,drawtext=text='${esc}':fontcolor=white:fontsize=44:box=1:boxcolor=black@0.6:boxborderw=8:x=(w-text_w)/2:y=h*0.08`;
       }
       
-      await runFfmpeg(['-i', raw, '-t', String(clipDuration), '-vf', vf,
-        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',
-        '-pix_fmt', 'yuv420p', '-r', '30', '-threads', '1',
-        '-bufsize', '500k', '-maxrate', '500k', '-an', '-y', seg]);
-      
-      segments.push(seg);
-      try { fs.unlinkSync(raw); } catch (e) {}
-      if (global.gc) global.gc();
-    }
+     await runFfmpeg([
+  '-i', raw, '-t', String(clipDuration), '-vf', vf,
+  '-c:v', 'libx264', '-preset', 'fast', '-crf', '22',
+  '-pix_fmt', 'yuv420p', '-r', '30', '-threads', '1',
+  '-an', '-y', seg
+]);
+segments.push(seg);
+try { fs.unlinkSync(raw); } catch (e) {}
+if (global.gc) global.gc();
     
     // Concat
     const list = path.join(dir, 'list.txt');
