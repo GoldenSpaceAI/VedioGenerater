@@ -22,10 +22,8 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 
 const TEMP_DIR = '/tmp/video-gen';
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
 
-let FONT_PATH = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
-if (!fs.existsSync(FONT_PATH)) FONT_PATH = '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf';
-
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.get('/images', (req, res) => res.sendFile(path.join(__dirname, 'images.html')));
 
 app.post('/api/chat', async (req, res) => {
   try {
@@ -40,7 +38,16 @@ app.post('/api/chat', async (req, res) => {
 
 app.get('/api/pexels/videos', async (req, res) => {
   try {
-    const r = await fetch(`https://api.pexels.com/videos/search?query=${encodeURIComponent(req.query.query)}&per_page=${req.query.per_page || 1}`,
+    const r = await fetch(`https://api.pexels.com/videos/search?query=${encodeURIComponent(req.query.query)}&per_page=1`,
+      { headers: { 'Authorization': `${process.env.PEXELS_API_KEY}` } });
+    res.json(await r.json());
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/pexels/images', async (req, res) => {
+  try {
+    const { query, per_page, page } = req.query;
+    const r = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=${per_page || 80}&page=${page || 1}`,
       { headers: { 'Authorization': `${process.env.PEXELS_API_KEY}` } });
     res.json(await r.json());
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -48,16 +55,15 @@ app.get('/api/pexels/videos', async (req, res) => {
 
 function runFfmpeg(args) {
   return new Promise((resolve, reject) => {
-    console.log('🎬', args.join(' ').substring(0, 250));
     const proc = spawn(ffmpegPath, args);
     let stderr = '';
     proc.stderr.on('data', d => stderr += d.toString());
     proc.on('close', code => {
       if (code === 0) resolve();
-      else { console.error('❌', stderr.slice(-400)); reject(new Error(`Code ${code}`)); }
+      else reject(new Error(`FFmpeg code ${code}: ${stderr.slice(-200)}`));
     });
     proc.on('error', reject);
-    setTimeout(() => proc.kill('SIGKILL'), 300000);
+    setTimeout(() => proc.kill('SIGKILL'), 180000);
   });
 }
 
@@ -85,35 +91,25 @@ function downloadFile(url, dest) {
   });
 }
 
-function safeText(t, maxLen = 60) {
-  return (t || '').replace(/['"\[\]{}%;:,]/g, '').replace(/\s+/g, ' ').trim().substring(0, maxLen);
-}
-
-// ==================== RENDER ====================
+// ==================== SIMPLE VIDEO RENDER (No effects, 10s per clip) ====================
 app.post('/api/render', upload.single('audio'), async (req, res) => {
   const id = uuidv4();
   const dir = path.join(TEMP_DIR, id);
   
   try {
-    const { clips, subtitles, introText, midText, endText, duration } = req.body;
+    const { clips, subtitles, duration } = req.body;
     const clipData = JSON.parse(clips || '[]');
     const subData = subtitles ? JSON.parse(subtitles) : [];
-    const intro = introText || '';
-    const mid = midText || '';
-    const end = endText || '';
-    
-    // Filter out null clips
-    const validClips = clipData.filter(c => c && c.url);
-    if (!validClips.length) return res.status(400).json({ error: 'No valid clips' });
-    
-    // Use only valid clips count
     const totalDuration = parseFloat(duration) || 30;
-    const actualCount = validClips.length;
-    const clipDuration = totalDuration / actualCount;
     
-    console.log(`\n🎬 RENDER | ${actualCount} clips | ${totalDuration}s`);
-    console.log(`📝 Intro: "${intro}" | Mid: "${mid}" | End: "${end}"`);
-    console.log(`📊 Subtitles: ${subData.length} entries`);
+    const validClips = clipData.filter(c => c && c.url);
+    if (!validClips.length) return res.status(400).json({ error: 'No clips' });
+    
+    const actualCount = validClips.length;
+    const clipDuration = 10; // FIXED 10 seconds per clip
+    const adjustedTotal = actualCount * clipDuration;
+    
+    console.log(`🎬 SIMPLE RENDER | ${actualCount} clips × 10s = ${adjustedTotal}s`);
     
     fs.mkdirSync(dir);
     
@@ -122,87 +118,44 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     const audioPath = path.join(dir, 'voice.webm');
     if (hasAudio) {
       fs.writeFileSync(audioPath, req.file.buffer);
-      console.log('🎙️ Audio recorded');
     } else {
-      await runFfmpeg(['-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo', '-t', String(totalDuration), '-c:a', 'libopus', '-y', audioPath]);
-      console.log('🔇 Silent audio generated');
+      await runFfmpeg(['-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo', '-t', String(adjustedTotal), '-c:a', 'libopus', '-y', audioPath]);
     }
     
     const segments = [];
     
     for (let i = 0; i < actualCount; i++) {
-      console.log(`\n📹 Clip ${i+1}/${actualCount}`);
-      
+      console.log(`📹 Clip ${i+1}/${actualCount}`);
       const raw = path.join(dir, `r${i}.mp4`);
       const seg = path.join(dir, `s${i}.mp4`);
       
       await downloadFile(validClips[i].url, raw);
-      console.log(`  ⬇️ Downloaded`);
       
-      const cStart = i * clipDuration;
-      const cEnd = (i + 1) * clipDuration;
-      
-      // Get subtitles for this clip
-      const cSubs = subData.filter(s => {
-        const st = parseFloat(s.startTime);
-        return st >= cStart && st < cEnd;
-      });
-      const subText = safeText(cSubs.map(s => s.text).join(' '));
-      
-      // Build video filter
+      // SIMPLE filter - just scale, no effects
       let vf = 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920';
       
-      // ===== SMOOTH TRANSITION (fade in) =====
-      if (i > 0) {
-        vf += `,fade=t=in:d=0.3`;
+      // Subtitles only
+      const cStart = i * clipDuration;
+      const cEnd = (i + 1) * clipDuration;
+      const cSubs = subData.filter(s => parseFloat(s.startTime) >= cStart && parseFloat(s.startTime) < cEnd);
+      const subText = cSubs.map(s => s.text).join(' ').replace(/['"\[\]{}%;:,]/g, '').trim().substring(0, 50);
+      
+      if (subText) {
+        const esc = subText.replace(/'/g, "'\\''");
+        vf += `,drawtext=text='${esc}':fontcolor=white:fontsize=44:box=1:boxcolor=black@0.6:boxborderw=8:x=(w-text_w)/2:y=h*0.08`;
       }
       
-      // ===== INTRO HOOK (first clip, 0-4 seconds) =====
-      if (i === 0 && intro) {
-        const escI = safeText(intro, 40).replace(/'/g, "'\\''");
-        vf += `,drawtext=text='${escI}':fontcolor=yellow:fontsize=56:box=1:boxcolor=black@0.85:boxborderw=18:x=(w-text_w)/2:y=(h-text_h)/2:fontfile='${FONT_PATH}':enable='between(t,0,4)'`;
-        console.log(`  ⚡ Intro hook added`);
-      }
-      
-      // ===== SUBTITLES (top) =====
-      if (subText && subText.length > 1) {
-        const escS = subText.replace(/'/g, "'\\''");
-        vf += `,drawtext=text='${escS}':fontcolor=white:fontsize=50:box=1:boxcolor=black@0.7:boxborderw=12:x=(w-text_w)/2:y=h*0.06:fontfile='${FONT_PATH}'`;
-      }
-      
-      // ===== MIDDLE TEXT (halfway clip, shows 3 seconds) =====
-      const midClipIndex = Math.floor(actualCount / 2);
-      if (mid && i === midClipIndex) {
-        const escM = safeText(mid, 35).replace(/'/g, "'\\''");
-        const midStart = cStart + 0.5;
-        const midEnd = cStart + 3.5;
-        vf += `,drawtext=text='${escM}':fontcolor=orange:fontsize=50:box=1:boxcolor=black@0.85:boxborderw=16:x=(w-text_w)/2:y=(h-text_h)/2:fontfile='${FONT_PATH}':enable='between(t,${midStart},${midEnd})'`;
-        console.log(`  ❓ Middle text added at clip ${i+1}`);
-      }
-      
-      // ===== END TEXT (last clip) =====
-      if (end && i === actualCount - 1) {
-        const escE = safeText(end, 30).replace(/'/g, "'\\''");
-        vf += `,drawtext=text='${escE}':fontcolor=yellow:fontsize=58:box=1:boxcolor=black@0.85:boxborderw=18:x=(w-text_w)/2:y=(h-text_h)/2:fontfile='${FONT_PATH}':enable='between(t,${cStart+0.5},${cEnd})'`;
-        console.log(`  💬 End text added`);
-      }
-      
-      // Render
-      await runFfmpeg([
-        '-i', raw, '-t', String(clipDuration), '-vf', vf,
-        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
-        '-pix_fmt', 'yuv420p', '-profile:v', 'main', '-level', '4.0',
-        '-r', '30', '-threads', '1', '-an', '-y', seg
-      ]);
+      await runFfmpeg(['-i', raw, '-t', String(clipDuration), '-vf', vf,
+        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',
+        '-pix_fmt', 'yuv420p', '-r', '30', '-threads', '1',
+        '-bufsize', '500k', '-maxrate', '500k', '-an', '-y', seg]);
       
       segments.push(seg);
       try { fs.unlinkSync(raw); } catch (e) {}
-      console.log(`  ✅ Rendered`);
       if (global.gc) global.gc();
     }
     
-    // Concatenate
-    console.log(`\n🔗 Concatenating...`);
+    // Concat
     const list = path.join(dir, 'list.txt');
     fs.writeFileSync(list, segments.map(f => `file '${f}'`).join('\n'));
     const silent = path.join(dir, 'silent.mp4');
@@ -210,34 +163,93 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     segments.forEach(f => { try { fs.unlinkSync(f); } catch (e) {} });
     try { fs.unlinkSync(list); } catch (e) {}
     
-    // Add audio
-    console.log(`🎵 Adding audio...`);
+    // Audio
     const output = path.join(dir, 'output.mp4');
-    await runFfmpeg([
-      '-i', silent, '-i', audioPath, '-c:v', 'copy', '-c:a', 'aac',
-      '-b:a', '192k', '-ar', '44100', '-ac', '2', '-threads', '1',
-      '-movflags', '+faststart', '-shortest', '-y', output
-    ]);
+    await runFfmpeg(['-i', silent, '-i', audioPath, '-c:v', 'copy', '-c:a', 'aac',
+      '-b:a', '128k', '-ar', '44100', '-ac', '2', '-threads', '1',
+      '-movflags', '+faststart', '-shortest', '-y', output]);
     
     try { fs.unlinkSync(silent); } catch (e) {}
     try { fs.unlinkSync(audioPath); } catch (e) {}
     
     const stat = fs.statSync(output);
-    console.log(`✅ COMPLETE | ${(stat.size/1024/1024).toFixed(2)}MB`);
+    console.log(`✅ ${(stat.size/1024/1024).toFixed(2)}MB`);
     
+    req.setTimeout(300000);
     res.set({
       'Content-Type': 'video/mp4',
-      'Content-Disposition': `attachment; filename="viral_${Date.now()}.mp4"`,
+      'Content-Disposition': `attachment; filename="short_${Date.now()}.mp4"`,
       'Content-Length': stat.size
     });
     
     const stream = fs.createReadStream(output);
     stream.on('end', () => setTimeout(() => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) {} }, 60000));
+    stream.on('error', () => { if (!res.headersSent) res.status(500).end(); });
     stream.pipe(res);
     
   } catch (e) {
-    console.error('❌ RENDER FAILED:', e.message);
+    console.error('❌', e.message);
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) {}
+    if (!res.headersSent) res.status(500).json({ error: e.message });
+  }
+});
+
+// ==================== IMAGE DOWNLOADER ====================
+const archiver = require('archiver');
+
+app.post('/api/download-images', async (req, res) => {
+  try {
+    const { query, count } = req.body;
+    const total = Math.min(count || 30, 300);
+    
+    console.log(`🖼️ Downloading ${total} images for "${query}"`);
+    
+    // Fetch images from Pexels (80 per page)
+    let allPhotos = [];
+    let page = 1;
+    
+    while (allPhotos.length < total && page <= 4) {
+      const r = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=80&page=${page}`,
+        { headers: { 'Authorization': `${process.env.PEXELS_API_KEY}` } });
+      const d = await r.json();
+      if (d.photos?.length) {
+        allPhotos = allPhotos.concat(d.photos);
+      } else break;
+      page++;
+    }
+    
+    const photos = allPhotos.slice(0, total);
+    console.log(`📸 Got ${photos.length} photos`);
+    
+    // Create ZIP
+    res.set({
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${query}_${photos.length}_images.zip"`
+    });
+    
+    const archive = archiver('zip', { zlib: { level: 1 } });
+    archive.pipe(res);
+    
+    for (let i = 0; i < photos.length; i++) {
+      const photo = photos[i];
+      const imgUrl = photo.src.large2x || photo.src.large;
+      const ext = '.jpg';
+      const filename = `${query}_${i+1}${ext}`;
+      
+      try {
+        const imgData = await fetch(imgUrl).then(r => r.buffer());
+        archive.append(imgData, { name: filename });
+        console.log(`  ✅ ${i+1}/${photos.length}`);
+      } catch (e) {
+        console.log(`  ❌ ${i+1} failed`);
+      }
+    }
+    
+    await archive.finalize();
+    console.log(`✅ ZIP sent!`);
+    
+  } catch (e) {
+    console.error('❌', e.message);
     if (!res.headersSent) res.status(500).json({ error: e.message });
   }
 });
