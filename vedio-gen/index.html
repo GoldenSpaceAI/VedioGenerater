@@ -16,7 +16,7 @@
       --muted: #888888;
       --danger: #e74c3c;
       --success: #2ecc71;
-      --accent: #ff6b35;
+      --orange: #ff6b35;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -29,10 +29,8 @@
       display: flex;
       flex-direction: column;
       -webkit-tap-highlight-color: transparent;
-      user-select: none;
     }
 
-    /* HEADER */
     .header {
       padding: 16px 20px;
       display: flex;
@@ -56,45 +54,9 @@
       flex-shrink: 0;
     }
 
-    .header h1 {
-      font-size: 15px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-    }
-
+    .header h1 { font-size: 15px; font-weight: 700; }
     .header h1 span { color: var(--gold); }
 
-    .header .badge {
-      margin-left: auto;
-      background: var(--card);
-      border: 1px solid var(--border);
-      padding: 6px 12px;
-      border-radius: 20px;
-      font-size: 11px;
-      color: var(--muted);
-    }
-
-    .header .badge.online {
-      color: var(--success);
-      border-color: #1a3a2a;
-    }
-
-    .header .badge.online::before {
-      content: '';
-      display: inline-block;
-      width: 6px; height: 6px;
-      background: var(--success);
-      border-radius: 50%;
-      margin-right: 6px;
-      animation: pulse 2s infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
-    }
-
-    /* MAIN CONTAINER */
     .container {
       flex: 1;
       padding: 16px;
@@ -103,26 +65,21 @@
       width: 100%;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 14px;
     }
 
-    /* CARDS */
     .card {
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 14px;
-      padding: 16px;
+      padding: 14px;
     }
 
     .card-header {
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 12px;
-    }
-
-    .card-header .icon {
-      font-size: 18px;
+      margin-bottom: 10px;
     }
 
     .card-header .label {
@@ -133,7 +90,6 @@
       font-weight: 700;
     }
 
-    /* TEXTAREA */
     textarea {
       width: 100%;
       padding: 14px;
@@ -146,14 +102,26 @@
       min-height: 100px;
       font-family: inherit;
       outline: none;
-      transition: border 0.2s;
       line-height: 1.5;
     }
 
     textarea:focus { border-color: var(--gold-dark); }
     textarea::placeholder { color: #444; }
 
-    /* STATS ROW */
+    input[type="text"] {
+      width: 100%;
+      padding: 12px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: #fff;
+      border-radius: 25px;
+      font-size: 13px;
+      outline: none;
+    }
+
+    input[type="text"]:focus { border-color: var(--gold-dark); }
+    input[type="text"]::placeholder { color: #444; }
+
     .stats {
       display: flex;
       gap: 8px;
@@ -171,17 +139,12 @@
       align-items: center;
       gap: 6px;
       flex: 1;
-      min-width: 80px;
+      min-width: 70px;
       justify-content: center;
     }
 
-    .stat .val {
-      color: var(--gold);
-      font-weight: 700;
-      font-size: 13px;
-    }
+    .stat .val { color: var(--gold); font-weight: 700; font-size: 13px; }
 
-    /* SCENE LIST */
     .scene-list {
       display: flex;
       flex-direction: column;
@@ -214,10 +177,8 @@
       flex-shrink: 0;
     }
 
-    .scene-item.found .num {
-      background: var(--gold-dark);
-      color: #000;
-    }
+    .scene-item.found .num { background: var(--gold-dark); color: #000; }
+    .scene-item.found { border-left: 2px solid var(--gold); }
 
     .scene-item input {
       flex: 1;
@@ -226,10 +187,9 @@
       color: #ccc;
       font-size: 12px;
       outline: none;
-      padding: 4px 0;
     }
 
-    .scene-item .dot {
+    .dot {
       width: 7px; height: 7px;
       border-radius: 50%;
       flex-shrink: 0;
@@ -239,13 +199,12 @@
     .dot.fetched { background: var(--gold); }
     .dot.failed { background: var(--danger); }
 
-    /* SUBTITLE PREVIEW */
     .sub-preview {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 10px;
-      max-height: 150px;
+      max-height: 140px;
       overflow-y: auto;
       font-size: 11px;
     }
@@ -258,22 +217,12 @@
       color: #aaa;
     }
 
-    .sub-line .time {
-      color: var(--gold);
-      font-family: monospace;
-      font-size: 10px;
-      min-width: 55px;
-    }
+    .sub-line .time { color: var(--gold); font-family: monospace; font-size: 10px; min-width: 50px; }
 
-    /* BUTTONS */
-    .btn-row {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
     .btn {
-      padding: 12px 16px;
+      padding: 12px 14px;
       border: none;
       border-radius: 25px;
       cursor: pointer;
@@ -281,39 +230,21 @@
       font-size: 12px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      transition: all 0.2s;
       flex: 1;
-      min-width: 100px;
+      min-width: 90px;
       text-align: center;
+      transition: all 0.15s;
     }
 
     .btn:active { transform: scale(0.96); }
 
-    .btn-gold {
-      background: linear-gradient(135deg, var(--gold-dark), var(--gold));
-      color: #000;
-    }
-
-    .btn-outline {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: #ccc;
-    }
-
-    .btn-outline.active {
-      background: var(--gold-dark);
-      color: #000;
-      border-color: var(--gold);
-    }
-
-    .btn-record {
-      background: var(--danger);
-      color: #fff;
-    }
+    .btn-gold { background: linear-gradient(135deg, var(--gold-dark), var(--gold)); color: #000; }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: #ccc; }
+    .btn-outline.active { background: var(--gold-dark); color: #000; border-color: var(--gold); }
+    .btn-record { background: var(--danger); color: #fff; }
 
     .btn-record.recording {
       animation: recPulse 1s infinite;
-      background: #c0392b;
     }
 
     @keyframes recPulse {
@@ -321,31 +252,14 @@
       50% { box-shadow: 0 0 0 14px rgba(231, 76, 60, 0); }
     }
 
-    .btn:disabled {
-      opacity: 0.3;
-      pointer-events: none;
+    .btn:disabled { opacity: 0.3; pointer-events: none; }
+
+    .highlight-box {
+      border: 1px solid var(--orange);
+      border-left: 3px solid var(--orange);
     }
 
-    /* INPUTS */
-    .input-row {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .input-row input {
-      flex: 1;
-      padding: 12px 14px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      color: #fff;
-      border-radius: 25px;
-      font-size: 13px;
-      outline: none;
-    }
-
-    .input-row input:focus { border-color: var(--gold-dark); }
-    .input-row input::placeholder { color: #444; }
+    .highlight-box .card-header .label { color: var(--orange); }
 
     select {
       padding: 10px 14px;
@@ -359,19 +273,17 @@
       cursor: pointer;
     }
 
-    /* STATUS */
     .status {
       text-align: center;
       font-size: 12px;
       color: var(--muted);
-      padding: 8px;
-      min-height: 20px;
+      padding: 6px;
+      min-height: 18px;
     }
 
     .status.success { color: var(--success); }
     .status.error { color: var(--danger); }
 
-    /* COUNTDOWN */
     .countdown {
       position: fixed;
       top: 50%; left: 50%;
@@ -385,7 +297,6 @@
       pointer-events: none;
     }
 
-    /* SPINNER */
     .spinner {
       display: inline-block;
       width: 16px; height: 16px;
@@ -399,43 +310,50 @@
 
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* MOBILE */
+    .preview-note {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
     @media (max-width: 400px) {
       .container { padding: 10px; gap: 10px; }
-      .card { padding: 12px; border-radius: 10px; }
+      .card { padding: 12px; }
       .btn { padding: 10px 12px; font-size: 11px; }
-      .stats { gap: 4px; }
       .stat { padding: 6px 10px; font-size: 10px; }
     }
   </style>
 </head>
 <body>
 
-  <!-- HEADER -->
   <div class="header">
     <div class="logo">⚡</div>
     <h1>Shorts <span>Forge</span></h1>
-    <div class="badge online">Ready</div>
   </div>
 
-  <!-- MAIN -->
   <div class="container">
 
-    <!-- SCRIPT CARD -->
+    <!-- SCRIPT -->
     <div class="card">
       <div class="card-header">
-        <span class="icon">📝</span>
+        <span>📝</span>
         <span class="label">Your Script</span>
       </div>
-      <textarea id="scriptInput" placeholder="Paste your voiceover script here...&#10;&#10;AI will extract scenes & generate subtitles"></textarea>
+      <textarea id="scriptInput" placeholder="Paste your script here...&#10;&#10;AI will READ it and extract relevant scenes"></textarea>
     </div>
 
     <!-- STATS -->
     <div class="stats">
-      <div class="stat">🎬 <span class="val" id="sceneCount">0</span> scenes</div>
+      <div class="stat">🎬 <span class="val" id="sceneCount">0</span></div>
       <div class="stat">⏱ <span class="val" id="estDuration">0s</span></div>
-      <div class="stat">📹 <span class="val" id="clipsFound">0</span> clips</div>
-      <div class="stat">📝 <span class="val" id="subCount">0</span> subs</div>
+      <div class="stat">📹 <span class="val" id="clipsFound">0</span></div>
+      <div class="stat">📝 <span class="val" id="subCount">0</span></div>
     </div>
 
     <!-- CONTROLS -->
@@ -446,46 +364,71 @@
         <option value="5" selected>5s</option>
         <option value="7">7s</option>
       </select>
-      <button class="btn btn-outline active" id="btnSubToggle" onclick="toggleSubtitles()" style="flex:0;min-width:auto;padding:8px 14px;">💬 Subs: ON</button>
-      <button class="btn btn-outline" id="btnAudioToggle" onclick="toggleAudio()" style="flex:0;min-width:auto;padding:8px 14px;">🎤 Audio: ON</button>
+      <button class="btn btn-outline active" id="btnSubToggle" onclick="toggleSubtitles()" style="flex:0;min-width:auto;padding:8px 14px;">💬 ON</button>
+      <button class="btn btn-outline" id="btnAudioToggle" onclick="toggleAudio()" style="flex:0;min-width:auto;padding:8px 14px;">🎤 ON</button>
     </div>
 
-    <!-- END SCREEN TEXT -->
+    <!-- ===== NEW: INTRO HOOK TEXT ===== -->
+    <div class="card highlight-box">
+      <div class="card-header">
+        <span>⚡</span>
+        <span class="label">Intro Hook Text</span>
+        <span style="font-size:10px;color:var(--muted);margin-left:auto;">First 4 seconds</span>
+      </div>
+      <input type="text" id="introTextInput" placeholder="e.g. THE SUN IS EXPLODING RIGHT NOW!" maxlength="40">
+      <div class="preview-note" style="margin-top:8px;">
+        <span>💡</span> Big yellow text in center. Grabs attention immediately!
+      </div>
+    </div>
+
+    <!-- ===== NEW: MIDDLE TEXT ===== -->
+    <div class="card highlight-box">
+      <div class="card-header">
+        <span>❓</span>
+        <span class="label">Middle Question Text</span>
+        <span style="font-size:10px;color:var(--muted);margin-left:auto;">Halfway point</span>
+      </div>
+      <input type="text" id="midTextInput" placeholder="e.g. Can you guess what happens next?" maxlength="35">
+      <div class="preview-note" style="margin-top:8px;">
+        <span>💡</span> Orange text appears mid-video. Gets people to comment!
+      </div>
+    </div>
+
+    <!-- ===== END SCREEN TEXT ===== -->
     <div class="card">
       <div class="card-header">
-        <span class="icon">💬</span>
+        <span>💬</span>
         <span class="label">End Screen Text</span>
+        <span style="font-size:10px;color:var(--muted);margin-left:auto;">Last clip</span>
       </div>
-      <div class="input-row">
-        <input type="text" id="endTextInput" placeholder="e.g. SUBSCRIBE! 🔔" maxlength="30">
-      </div>
+      <input type="text" id="endTextInput" placeholder="e.g. SUBSCRIBE FOR MORE! 🚀" maxlength="30">
     </div>
 
-    <!-- SCENE LIST -->
+    <!-- SCENES -->
     <div class="card">
       <div class="card-header">
-        <span class="icon">🎞️</span>
-        <span class="label">Scene Breakdown</span>
+        <span>🎞️</span>
+        <span class="label">AI Scene Breakdown</span>
       </div>
       <div class="scene-list" id="sceneList">
-        <div style="color:#555;font-size:12px;padding:8px;text-align:center;">⬆️ Paste script & extract scenes</div>
+        <div style="color:#555;font-size:12px;padding:8px;text-align:center;">⬆️ AI will read your script & extract scenes</div>
       </div>
     </div>
 
-    <!-- SUBTITLE PREVIEW -->
+    <!-- SUBTITLES -->
     <div class="card">
       <div class="card-header">
-        <span class="icon">📝</span>
-        <span class="label">Subtitle Preview</span>
+        <span>📝</span>
+        <span class="label">Subtitles Preview</span>
       </div>
       <div class="sub-preview" id="subtitlePreview">
-        <div style="color:#555;font-size:11px;text-align:center;">Subtitles appear here...</div>
+        <div style="color:#555;font-size:11px;text-align:center;">Generated from your script...</div>
       </div>
     </div>
 
     <!-- BUTTONS -->
     <div class="btn-row">
-      <button class="btn btn-gold" id="btnScenes" onclick="extractScenes()">🔍 Extract</button>
+      <button class="btn btn-gold" id="btnScenes" onclick="extractScenes()">🔍 AI Extract</button>
       <button class="btn btn-gold" id="btnFetch" onclick="fetchVideos()" disabled>📥 Fetch</button>
     </div>
     <div class="btn-row">
@@ -493,11 +436,9 @@
       <button class="btn btn-gold" id="btnRender" onclick="renderVideo()" disabled>🎬 Render</button>
     </div>
 
-    <!-- STATUS -->
-    <div class="status" id="status">Ready to create ✨</div>
+    <div class="status" id="status">Ready ✨</div>
   </div>
 
-  <!-- COUNTDOWN OVERLAY -->
   <div class="countdown" id="countdown"></div>
 
   <script>
@@ -512,8 +453,7 @@
 
     function updateStats() {
       const script = document.getElementById('scriptInput').value.trim();
-      const chars = script.length;
-      const dur = Math.min(60, Math.round(chars / 15));
+      const dur = Math.min(60, Math.round(script.length / 15));
       videoDuration = dur || 0;
       document.getElementById('estDuration').textContent = dur ? `${dur}s` : '0s';
       document.getElementById('sceneCount').textContent = scenes.length;
@@ -523,26 +463,23 @@
 
     document.getElementById('scriptInput').addEventListener('input', updateStats);
 
-    // ==================== TOGGLES ====================
     function toggleSubtitles() {
       subtitlesEnabled = !subtitlesEnabled;
-      const btn = document.getElementById('btnSubToggle');
-      btn.textContent = `💬 Subs: ${subtitlesEnabled ? 'ON' : 'OFF'}`;
-      btn.classList.toggle('active', subtitlesEnabled);
+      const b = document.getElementById('btnSubToggle');
+      b.textContent = subtitlesEnabled ? '💬 ON' : '💬 OFF';
+      b.classList.toggle('active', subtitlesEnabled);
       renderSubPreview();
       updateStats();
     }
 
     function toggleAudio() {
       audioEnabled = !audioEnabled;
-      const btn = document.getElementById('btnAudioToggle');
-      btn.textContent = `🎤 Audio: ${audioEnabled ? 'ON' : 'OFF'}`;
-      btn.classList.toggle('active', audioEnabled);
+      const b = document.getElementById('btnAudioToggle');
+      b.textContent = audioEnabled ? '🎤 ON' : '🎤 OFF';
+      b.classList.toggle('active', audioEnabled);
       if (!audioEnabled) {
         recordedAudio = null;
         document.getElementById('btnRender').disabled = false;
-        document.getElementById('status').textContent = '🔇 Audio off — video will be silent';
-        document.getElementById('status').className = 'status';
       } else {
         document.getElementById('btnRender').disabled = !recordedAudio;
       }
@@ -550,18 +487,11 @@
     }
 
     function updateRecordBtn() {
-      const btn = document.getElementById('btnRecord');
-      if (audioEnabled && scenes.length > 0) {
-        btn.disabled = false;
-      } else if (!audioEnabled) {
-        btn.disabled = true;
-        btn.textContent = '🎙️ Record';
-        btn.classList.remove('recording');
-      }
+      const b = document.getElementById('btnRecord');
+      b.disabled = !(audioEnabled && scenes.length > 0 && videoClips.filter(c=>c).length > 0);
     }
 
-    // ==================== SUBTITLES ====================
-    function generateSubtitles(script, numScenes, totalDuration) {
+    function generateSubtitles(script, totalDuration) {
       if (!subtitlesEnabled) return [];
       const words = script.split(/\s+/).filter(w => w.length > 0);
       if (!words.length) return [];
@@ -581,21 +511,20 @@
 
     function renderSubPreview() {
       const c = document.getElementById('subtitlePreview');
-      if (!subtitlesEnabled) { c.innerHTML = '<div style="color:#555;text-align:center;">🚫 Subtitles OFF</div>'; return; }
+      if (!subtitlesEnabled) { c.innerHTML = '<div style="color:#555;text-align:center;">🚫 OFF</div>'; return; }
       if (!subtitles.length) { c.innerHTML = '<div style="color:#555;text-align:center;">Extract scenes first...</div>'; return; }
-      c.innerHTML = subtitles.map(s =>
-        `<div class="sub-line"><span class="time">${s.startTime.toFixed(0)}s</span><span>${s.text}</span></div>`
-      ).join('');
+      c.innerHTML = subtitles.map(s => `<div class="sub-line"><span class="time">${s.startTime.toFixed(0)}s</span><span>${s.text}</span></div>`).join('');
     }
 
-    // ==================== EXTRACT SCENES ====================
+    // ==================== AI SCENE EXTRACTION ====================
     async function extractScenes() {
       const script = document.getElementById('scriptInput').value.trim();
       if (!script) return alert('Paste your script first.');
+      
       const btn = document.getElementById('btnScenes');
       const status = document.getElementById('status');
       btn.disabled = true;
-      status.innerHTML = '<span class="spinner"></span> Analyzing...';
+      status.innerHTML = '<span class="spinner"></span> AI is reading your script...';
       status.className = 'status';
 
       const secPerClip = parseInt(document.getElementById('secPerClip').value) || 5;
@@ -609,32 +538,52 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             messages: [
-              { role: 'system', content: `Extract exactly ${numScenes} scene keywords from this script. Output ONE per line (2-5 words). Match the actual content. No numbers.` },
-              { role: 'user', content: `Extract ${numScenes} scenes:\n\n${script}` }
+              {
+                role: 'system',
+                content: `You are a Pexels video search expert. Read the script below and return EXACTLY ${numScenes} search queries.
+
+CRITICAL RULES:
+- ACTUALLY READ the script content
+- If script is about octopuses → "cute octopus swimming", "octopus underwater ocean"
+- If script is about black holes → "black hole space", "nebula galaxy stars"
+- If script is about the Sun → "burning sun solar flare", "sun space NASA"
+- Match the EXACT subject described in the text
+- Each line: 2-5 descriptive words, highly searchable on Pexels
+- Output ONLY the queries, one per line
+- NO numbers, NO bullets, NO extra text`
+              },
+              { role: 'user', content: `SCRIPT:\n\n${script}\n\nReturn ${numScenes} Pexels search queries:` }
             ]
           })
         });
+        
         const d = await r.json();
+        console.log('AI Response:', d);
+        
         if (d.choices?.[0]) {
-          scenes = d.choices[0].message.content.split('\n')
-            .map(l => l.replace(/^\d+[\.\)]\s*/, '').replace(/^[-*]\s*/, '').trim())
-            .filter(l => l.length > 0 && l.length < 100)
+          const content = d.choices[0].message.content;
+          console.log('AI Scenes:', content);
+          
+          scenes = content.split('\n')
+            .map(l => l.replace(/^\d+[\.\)]\s*/, '').replace(/^[-*•]\s*/, '').replace(/["']/g, '').trim())
+            .filter(l => l.length > 2 && l.length < 80)
             .slice(0, numScenes);
           
-          // ENSURE exact number of scenes
-          while (scenes.length < numScenes) scenes.push('nature scenery');
+          while (scenes.length < numScenes) scenes.push('beautiful nature landscape');
           scenes = scenes.slice(0, numScenes);
           
-          subtitles = generateSubtitles(script, scenes.length, totalDuration);
+          subtitles = generateSubtitles(script, totalDuration);
+          
           renderScenes();
           renderSubPreview();
           document.getElementById('btnFetch').disabled = false;
           updateRecordBtn();
-          status.textContent = `✅ ${scenes.length} scenes ready`;
+          status.innerHTML = `✅ AI found ${scenes.length} scenes from your script`;
           status.className = 'status success';
         }
       } catch (e) {
-        status.textContent = '❌ Failed to extract scenes';
+        console.error('Extract error:', e);
+        status.textContent = '❌ Failed. Check console.';
         status.className = 'status error';
       }
       btn.disabled = false;
@@ -645,13 +594,11 @@
       document.getElementById('sceneList').innerHTML = scenes.map((s, i) => `
         <div class="scene-item" id="scene-${i}">
           <span class="num">${i+1}</span>
-          <input type="text" value="${s}" id="keyword-${i}" onchange="updateKeyword(${i},this.value)">
+          <input type="text" value="${s}" onchange="scenes[${i}]=this.value.trim()">
           <span class="dot pending" id="dot-${i}"></span>
         </div>
       `).join('');
     }
-
-    function updateKeyword(i, v) { scenes[i] = v.trim(); }
 
     // ==================== FETCH VIDEOS ====================
     async function fetchVideos() {
@@ -663,7 +610,7 @@
       let count = 0;
 
       for (let i = 0; i < scenes.length; i++) {
-        status.innerHTML = `<span class="spinner"></span> Fetching ${i+1}/${scenes.length}...`;
+        status.innerHTML = `<span class="spinner"></span> Searching "${scenes[i]}"...`;
         status.className = 'status';
         try {
           const r = await fetch(`/api/pexels/videos?query=${encodeURIComponent(scenes[i])}&per_page=1`);
@@ -685,10 +632,10 @@
 
       if (count > 0) {
         updateRecordBtn();
-        status.textContent = `✅ ${count}/${scenes.length} clips fetched`;
+        status.textContent = `✅ ${count}/${scenes.length} clips ready`;
         status.className = 'status success';
       } else {
-        status.textContent = '❌ No clips found';
+        status.textContent = '❌ No clips found. Try different scenes.';
         status.className = 'status error';
       }
       btn.disabled = false;
@@ -702,7 +649,6 @@
       if (!videoDuration) return alert('Paste script first.');
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        
         const overlay = document.getElementById('countdown');
         overlay.style.display = 'block';
         for (let i = 3; i > 0; i--) { overlay.textContent = i; await new Promise(r => setTimeout(r, 1000)); }
@@ -716,13 +662,15 @@
           recordedAudio = new Blob(recordingChunks, { type: 'audio/webm' });
           stream.getTracks().forEach(t => t.stop());
           document.getElementById('btnRender').disabled = false;
-          document.getElementById('status').textContent = `✅ Recorded (${recordingSeconds}s)`;
+          document.getElementById('status').textContent = `✅ Recorded ${recordingSeconds}s`;
           document.getElementById('status').className = 'status success';
         };
         mediaRecorder.start();
 
         const btn = document.getElementById('btnRecord');
-        btn.textContent = '⏺️ Stop'; btn.classList.add('recording'); btn.onclick = stopRecording;
+        btn.textContent = '⏺️ Stop';
+        btn.classList.add('recording');
+        btn.onclick = stopRecording;
 
         recordingSeconds = 0;
         recordingTimer = setInterval(() => {
@@ -740,32 +688,34 @@
         mediaRecorder.stop();
         clearInterval(recordingTimer);
         const btn = document.getElementById('btnRecord');
-        btn.textContent = '🎙️ Record'; btn.classList.remove('recording'); btn.onclick = startRecording;
+        btn.textContent = '🎙️ Record';
+        btn.classList.remove('recording');
+        btn.onclick = startRecording;
       }
     }
 
     // ==================== RENDER ====================
     async function renderVideo() {
       const validClips = videoClips.filter(c => c);
-      if (!validClips.length) return alert('No clips. Fetch first.');
-      if (audioEnabled && !recordedAudio) return alert('Record first or disable audio.');
+      if (!validClips.length) return alert('Fetch clips first.');
+      if (audioEnabled && !recordedAudio) return alert('Record or disable audio.');
 
       const btn = document.getElementById('btnRender');
       const status = document.getElementById('status');
       btn.disabled = true;
-      status.innerHTML = '<span class="spinner"></span> Rendering...';
+      status.innerHTML = '<span class="spinner"></span> Rendering with effects...';
       status.className = 'status';
 
       try {
         const formData = new FormData();
-        
-        if (recordedAudio && audioEnabled) {
-          formData.append('audio', recordedAudio, 'voice.webm');
-        }
-        
+        if (recordedAudio && audioEnabled) formData.append('audio', recordedAudio, 'voice.webm');
         formData.append('clips', JSON.stringify(validClips.map(c => ({ url: c.url }))));
         formData.append('duration', videoDuration.toString());
         formData.append('subtitles', JSON.stringify(subtitlesEnabled ? subtitles : []));
+        
+        // NEW FIELDS
+        formData.append('introText', document.getElementById('introTextInput').value.trim());
+        formData.append('midText', document.getElementById('midTextInput').value.trim());
         formData.append('endText', document.getElementById('endTextInput').value.trim());
 
         const r = await fetch('/api/render', { method: 'POST', body: formData });
@@ -775,11 +725,11 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `short_${Date.now()}.mp4`;
+        a.download = `viral_${Date.now()}.mp4`;
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
-        status.textContent = '✅ Downloaded! Ready for YouTube';
+        status.textContent = '✅ Downloaded! Ready to go viral! 🚀';
         status.className = 'status success';
       } catch (e) {
         status.textContent = `❌ ${e.message}`;
