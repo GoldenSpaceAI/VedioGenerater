@@ -98,12 +98,22 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     const { clips, subtitles, introText, midText, endText, duration } = req.body;
     const clipData = JSON.parse(clips || '[]');
     const subData = subtitles ? JSON.parse(subtitles) : [];
-    const totalDuration = parseFloat(duration) || 30;
     const intro = introText || '';
     const mid = midText || '';
     const end = endText || '';
     
-    if (!clipData.length) return res.status(400).json({ error: 'No clips' });
+    // Filter out null clips
+    const validClips = clipData.filter(c => c && c.url);
+    if (!validClips.length) return res.status(400).json({ error: 'No valid clips' });
+    
+    // Use only valid clips count
+    const totalDuration = parseFloat(duration) || 30;
+    const actualCount = validClips.length;
+    const clipDuration = totalDuration / actualCount;
+    
+    console.log(`\n🎬 RENDER | ${actualCount} clips | ${totalDuration}s`);
+    console.log(`📝 Intro: "${intro}" | Mid: "${mid}" | End: "${end}"`);
+    console.log(`📊 Subtitles: ${subData.length} entries`);
     
     fs.mkdirSync(dir);
     
@@ -112,64 +122,72 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     const audioPath = path.join(dir, 'voice.webm');
     if (hasAudio) {
       fs.writeFileSync(audioPath, req.file.buffer);
+      console.log('🎙️ Audio recorded');
     } else {
       await runFfmpeg(['-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo', '-t', String(totalDuration), '-c:a', 'libopus', '-y', audioPath]);
+      console.log('🔇 Silent audio generated');
     }
     
-    const clipDuration = totalDuration / clipData.length;
     const segments = [];
     
-    for (let i = 0; i < clipData.length; i++) {
-      console.log(`📹 Clip ${i+1}/${clipData.length}`);
+    for (let i = 0; i < actualCount; i++) {
+      console.log(`\n📹 Clip ${i+1}/${actualCount}`);
       
       const raw = path.join(dir, `r${i}.mp4`);
       const seg = path.join(dir, `s${i}.mp4`);
       
-      await downloadFile(clipData[i].url, raw);
+      await downloadFile(validClips[i].url, raw);
+      console.log(`  ⬇️ Downloaded`);
       
-      // Calculate time range for this clip
       const cStart = i * clipDuration;
       const cEnd = (i + 1) * clipDuration;
       
       // Get subtitles for this clip
-      const cSubs = subData.filter(s => parseFloat(s.startTime) >= cStart && parseFloat(s.startTime) < cEnd);
+      const cSubs = subData.filter(s => {
+        const st = parseFloat(s.startTime);
+        return st >= cStart && st < cEnd;
+      });
       const subText = safeText(cSubs.map(s => s.text).join(' '));
       
       // Build video filter
       let vf = 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920';
       
-      // ===== STEP 3: SMOOTH TRANSITION (fade in at clip start) =====
+      // ===== SMOOTH TRANSITION (fade in) =====
       if (i > 0) {
         vf += `,fade=t=in:d=0.3`;
       }
       
-      // ===== STEP 1: INTRO HOOK TEXT (first 4 seconds of first clip) =====
+      // ===== INTRO HOOK (first clip, 0-4 seconds) =====
       if (i === 0 && intro) {
         const escI = safeText(intro, 40).replace(/'/g, "'\\''");
-        vf += `,drawtext=text='${escI}':fontcolor=yellow:fontsize=56:box=1:boxcolor=black@0.8:boxborderw=16:x=(w-text_w)/2:y=(h-text_h)/2:fontfile='${FONT_PATH}':enable='between(t,0,4)'`;
+        vf += `,drawtext=text='${escI}':fontcolor=yellow:fontsize=56:box=1:boxcolor=black@0.85:boxborderw=18:x=(w-text_w)/2:y=(h-text_h)/2:fontfile='${FONT_PATH}':enable='between(t,0,4)'`;
+        console.log(`  ⚡ Intro hook added`);
       }
       
-      // ===== SUBTITLES (top of video) =====
+      // ===== SUBTITLES (top) =====
       if (subText && subText.length > 1) {
         const escS = subText.replace(/'/g, "'\\''");
         vf += `,drawtext=text='${escS}':fontcolor=white:fontsize=50:box=1:boxcolor=black@0.7:boxborderw=12:x=(w-text_w)/2:y=h*0.06:fontfile='${FONT_PATH}'`;
       }
       
-      // ===== STEP 2: MIDDLE TEXT (halfway point, shows for 3 seconds) =====
-      if (mid && i === Math.floor(clipData.length / 2)) {
+      // ===== MIDDLE TEXT (halfway clip, shows 3 seconds) =====
+      const midClipIndex = Math.floor(actualCount / 2);
+      if (mid && i === midClipIndex) {
         const escM = safeText(mid, 35).replace(/'/g, "'\\''");
         const midStart = cStart + 0.5;
         const midEnd = cStart + 3.5;
-        vf += `,drawtext=text='${escM}':fontcolor=orange:fontsize=50:box=1:boxcolor=black@0.8:boxborderw=14:x=(w-text_w)/2:y=(h-text_h)/2:fontfile='${FONT_PATH}':enable='between(t,${midStart},${midEnd})'`;
+        vf += `,drawtext=text='${escM}':fontcolor=orange:fontsize=50:box=1:boxcolor=black@0.85:boxborderw=16:x=(w-text_w)/2:y=(h-text_h)/2:fontfile='${FONT_PATH}':enable='between(t,${midStart},${midEnd})'`;
+        console.log(`  ❓ Middle text added at clip ${i+1}`);
       }
       
       // ===== END TEXT (last clip) =====
-      if (end && i === clipData.length - 1) {
+      if (end && i === actualCount - 1) {
         const escE = safeText(end, 30).replace(/'/g, "'\\''");
-        vf += `,drawtext=text='${escE}':fontcolor=yellow:fontsize=58:box=1:boxcolor=black@0.8:boxborderw=16:x=(w-text_w)/2:y=(h-text_h)/2:fontfile='${FONT_PATH}':enable='between(t,${cStart+0.5},${cEnd})'`;
+        vf += `,drawtext=text='${escE}':fontcolor=yellow:fontsize=58:box=1:boxcolor=black@0.85:boxborderw=18:x=(w-text_w)/2:y=(h-text_h)/2:fontfile='${FONT_PATH}':enable='between(t,${cStart+0.5},${cEnd})'`;
+        console.log(`  💬 End text added`);
       }
       
-      // Render this clip
+      // Render
       await runFfmpeg([
         '-i', raw, '-t', String(clipDuration), '-vf', vf,
         '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
@@ -179,10 +197,12 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
       
       segments.push(seg);
       try { fs.unlinkSync(raw); } catch (e) {}
+      console.log(`  ✅ Rendered`);
       if (global.gc) global.gc();
     }
     
-    // Concatenate all segments
+    // Concatenate
+    console.log(`\n🔗 Concatenating...`);
     const list = path.join(dir, 'list.txt');
     fs.writeFileSync(list, segments.map(f => `file '${f}'`).join('\n'));
     const silent = path.join(dir, 'silent.mp4');
@@ -191,6 +211,7 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     try { fs.unlinkSync(list); } catch (e) {}
     
     // Add audio
+    console.log(`🎵 Adding audio...`);
     const output = path.join(dir, 'output.mp4');
     await runFfmpeg([
       '-i', silent, '-i', audioPath, '-c:v', 'copy', '-c:a', 'aac',
@@ -202,6 +223,8 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     try { fs.unlinkSync(audioPath); } catch (e) {}
     
     const stat = fs.statSync(output);
+    console.log(`✅ COMPLETE | ${(stat.size/1024/1024).toFixed(2)}MB`);
+    
     res.set({
       'Content-Type': 'video/mp4',
       'Content-Disposition': `attachment; filename="viral_${Date.now()}.mp4"`,
@@ -213,7 +236,7 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     stream.pipe(res);
     
   } catch (e) {
-    console.error('❌', e.message);
+    console.error('❌ RENDER FAILED:', e.message);
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) {}
     if (!res.headersSent) res.status(500).json({ error: e.message });
   }
