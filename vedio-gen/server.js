@@ -9,11 +9,7 @@ const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
 
 let ffmpegPath;
-try {
-  ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
-} catch (e) {
-  ffmpegPath = 'ffmpeg';
-}
+try { ffmpegPath = require('@ffmpeg-installer/ffmpeg').path; } catch (e) { ffmpegPath = 'ffmpeg'; }
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -22,54 +18,37 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname)));
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 }
-});
-
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 const TEMP_DIR = '/tmp/video-gen';
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
 
 let FONT_PATH = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
-if (!fs.existsSync(FONT_PATH)) {
-  FONT_PATH = '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf';
-}
+if (!fs.existsSync(FONT_PATH)) FONT_PATH = '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf';
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 app.post('/api/chat', async (req, res) => {
   try {
-    const { messages } = req.body;
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({ model: 'gpt-4o-mini', messages, temperature: 0.7 })
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` },
+      body: JSON.stringify({ model: 'gpt-4o-mini', messages: req.body.messages, temperature: 0.7 })
     });
-    res.json(await response.json());
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+    res.json(await r.json());
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('/api/pexels/videos', async (req, res) => {
   try {
-    const { query, per_page } = req.query;
-    const r = await fetch(
-      `https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&per_page=${per_page || 1}`,
-      { headers: { 'Authorization': `${process.env.PEXELS_API_KEY}` } }
-    );
+    const r = await fetch(`https://api.pexels.com/videos/search?query=${encodeURIComponent(req.query.query)}&per_page=${req.query.per_page || 1}`,
+      { headers: { 'Authorization': `${process.env.PEXELS_API_KEY}` } });
     res.json(await r.json());
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 function runFfmpeg(args) {
   return new Promise((resolve, reject) => {
-    console.log('🎬', args.join(' ').substring(0, 200));
+    console.log('🎬', args.join(' ').substring(0, 250));
     const proc = spawn(ffmpegPath, args);
     let stderr = '';
     proc.stderr.on('data', d => stderr += d.toString());
@@ -97,19 +76,17 @@ function downloadFile(url, dest) {
     const req = (u, r = 0) => {
       if (r > 5) return finish(new Error('Redirects'));
       p.get(u, res => {
-        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          return req(res.headers.location, r + 1);
-        }
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) return req(res.headers.location, r + 1);
         res.pipe(file);
         file.on('finish', () => finish(null));
-      }).on('error', finish).setTimeout(30000, () => finish(new Error('Timeout')));
+      }).on('error', finish).setTimeout(60000, () => finish(new Error('Timeout')));
     };
     req(url);
   });
 }
 
-function safeText(t) {
-  return (t || '').replace(/['"\[\]{}%;:,]/g, '').replace(/\s+/g, ' ').trim().substring(0, 60);
+function safeText(t, maxLen = 60) {
+  return (t || '').replace(/['"\[\]{}%;:,]/g, '').replace(/\s+/g, ' ').trim().substring(0, maxLen);
 }
 
 // ==================== RENDER ====================
@@ -118,25 +95,24 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
   const dir = path.join(TEMP_DIR, id);
   
   try {
-    const { clips, subtitles, endText, duration } = req.body;
+    const { clips, subtitles, introText, midText, endText, duration } = req.body;
     const clipData = JSON.parse(clips || '[]');
     const subData = subtitles ? JSON.parse(subtitles) : [];
     const totalDuration = parseFloat(duration) || 30;
-    const endScreenText = endText || '';
+    const intro = introText || '';
+    const mid = midText || '';
+    const end = endText || '';
     
     if (!clipData.length) return res.status(400).json({ error: 'No clips' });
     
-    const hasAudio = req.file && req.file.buffer && req.file.buffer.length > 500;
-    let audioPath = null;
-    
     fs.mkdirSync(dir);
     
+    // Audio
+    const hasAudio = req.file && req.file.buffer && req.file.buffer.length > 500;
+    const audioPath = path.join(dir, 'voice.webm');
     if (hasAudio) {
-      audioPath = path.join(dir, 'voice.webm');
       fs.writeFileSync(audioPath, req.file.buffer);
     } else {
-      // Generate silence
-      audioPath = path.join(dir, 'silence.webm');
       await runFfmpeg(['-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo', '-t', String(totalDuration), '-c:a', 'libopus', '-y', audioPath]);
     }
     
@@ -144,32 +120,56 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     const segments = [];
     
     for (let i = 0; i < clipData.length; i++) {
-      console.log(`📹 ${i+1}/${clipData.length}`);
+      console.log(`📹 Clip ${i+1}/${clipData.length}`);
+      
       const raw = path.join(dir, `r${i}.mp4`);
       const seg = path.join(dir, `s${i}.mp4`);
       
       await downloadFile(clipData[i].url, raw);
       
-      // Build filter
+      // Calculate time range for this clip
       const cStart = i * clipDuration;
       const cEnd = (i + 1) * clipDuration;
+      
+      // Get subtitles for this clip
       const cSubs = subData.filter(s => parseFloat(s.startTime) >= cStart && parseFloat(s.startTime) < cEnd);
       const subText = safeText(cSubs.map(s => s.text).join(' '));
       
+      // Build video filter
       let vf = 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920';
       
-      // Subtitles - TOP area, very visible
+      // ===== STEP 3: SMOOTH TRANSITION (fade in at clip start) =====
+      if (i > 0) {
+        vf += `,fade=t=in:d=0.3`;
+      }
+      
+      // ===== STEP 1: INTRO HOOK TEXT (first 4 seconds of first clip) =====
+      if (i === 0 && intro) {
+        const escI = safeText(intro, 40).replace(/'/g, "'\\''");
+        vf += `,drawtext=text='${escI}':fontcolor=yellow:fontsize=56:box=1:boxcolor=black@0.8:boxborderw=16:x=(w-text_w)/2:y=(h-text_h)/2:fontfile='${FONT_PATH}':enable='between(t,0,4)'`;
+      }
+      
+      // ===== SUBTITLES (top of video) =====
       if (subText && subText.length > 1) {
-        const esc = subText.replace(/'/g, "'\\''");
-        vf += `,drawtext=text='${esc}':fontcolor=white:fontsize=52:box=1:boxcolor=black@0.7:boxborderw=12:x=(w-text_w)/2:y=h*0.08:fontfile='${FONT_PATH}'`;
+        const escS = subText.replace(/'/g, "'\\''");
+        vf += `,drawtext=text='${escS}':fontcolor=white:fontsize=50:box=1:boxcolor=black@0.7:boxborderw=12:x=(w-text_w)/2:y=h*0.06:fontfile='${FONT_PATH}'`;
       }
       
-      // End screen text on LAST clip
-      if (i === clipData.length - 1 && endScreenText) {
-        const escEnd = safeText(endScreenText).replace(/'/g, "'\\''");
-        vf += `,drawtext=text='${escEnd}':fontcolor=yellow:fontsize=64:box=1:boxcolor=black@0.8:boxborderw=16:x=(w-text_w)/2:y=(h-text_h)/2:fontfile='${FONT_PATH}'`;
+      // ===== STEP 2: MIDDLE TEXT (halfway point, shows for 3 seconds) =====
+      if (mid && i === Math.floor(clipData.length / 2)) {
+        const escM = safeText(mid, 35).replace(/'/g, "'\\''");
+        const midStart = cStart + 0.5;
+        const midEnd = cStart + 3.5;
+        vf += `,drawtext=text='${escM}':fontcolor=orange:fontsize=50:box=1:boxcolor=black@0.8:boxborderw=14:x=(w-text_w)/2:y=(h-text_h)/2:fontfile='${FONT_PATH}':enable='between(t,${midStart},${midEnd})'`;
       }
       
+      // ===== END TEXT (last clip) =====
+      if (end && i === clipData.length - 1) {
+        const escE = safeText(end, 30).replace(/'/g, "'\\''");
+        vf += `,drawtext=text='${escE}':fontcolor=yellow:fontsize=58:box=1:boxcolor=black@0.8:boxborderw=16:x=(w-text_w)/2:y=(h-text_h)/2:fontfile='${FONT_PATH}':enable='between(t,${cStart+0.5},${cEnd})'`;
+      }
+      
+      // Render this clip
       await runFfmpeg([
         '-i', raw, '-t', String(clipDuration), '-vf', vf,
         '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
@@ -182,7 +182,7 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
       if (global.gc) global.gc();
     }
     
-    // Concat
+    // Concatenate all segments
     const list = path.join(dir, 'list.txt');
     fs.writeFileSync(list, segments.map(f => `file '${f}'`).join('\n'));
     const silent = path.join(dir, 'silent.mp4');
@@ -204,7 +204,7 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     const stat = fs.statSync(output);
     res.set({
       'Content-Type': 'video/mp4',
-      'Content-Disposition': `attachment; filename="short_${Date.now()}.mp4"`,
+      'Content-Disposition': `attachment; filename="viral_${Date.now()}.mp4"`,
       'Content-Length': stat.size
     });
     
@@ -221,4 +221,4 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
 
 try { if (fs.existsSync(TEMP_DIR)) { fs.rmSync(TEMP_DIR, { recursive: true, force: true }); fs.mkdirSync(TEMP_DIR, { recursive: true }); } } catch (e) {}
 
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Port ${PORT}`));
