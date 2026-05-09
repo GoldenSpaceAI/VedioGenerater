@@ -50,10 +50,10 @@ function runFfmpeg(args) {
     proc.stderr.on('data', d => stderr += d.toString());
     proc.on('close', code => {
       if (code === 0) resolve();
-      else reject(new Error(`FFmpeg code ${code}: ${stderr.slice(-200)}`));
+      else reject(new Error(`FFmpeg code ${code}`));
     });
     proc.on('error', reject);
-    setTimeout(() => proc.kill('SIGKILL'), 300000);
+    setTimeout(() => proc.kill('SIGKILL'), 180000);
   });
 }
 
@@ -70,7 +70,7 @@ function downloadFile(url, dest) {
       else resolve();
     };
     const req = (u, r = 0) => {
-      if (r > 5) return finish(new Error('Too many redirects'));
+      if (r > 5) return finish(new Error('Redirects'));
       p.get(u, res => {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) return req(res.headers.location, r + 1);
         res.pipe(file);
@@ -81,24 +81,23 @@ function downloadFile(url, dest) {
   });
 }
 
-// ==================== HIGH QUALITY RENDER ====================
+// ==================== SIMPLE RENDER (Original working version) ====================
 app.post('/api/render', upload.single('audio'), async (req, res) => {
   const id = uuidv4();
   const dir = path.join(TEMP_DIR, id);
   
   try {
-    const { clips, subtitles, duration } = req.body;
+    const { clips, duration } = req.body;
     const clipData = JSON.parse(clips || '[]');
-    const subData = subtitles ? JSON.parse(subtitles) : [];
+    const totalDuration = parseFloat(duration) || 60;
     
     const validClips = clipData.filter(c => c && c.url);
-    if (!validClips.length) return res.status(400).json({ error: 'No valid clips' });
+    if (!validClips.length) return res.status(400).json({ error: 'No clips' });
     
     const actualCount = validClips.length;
     const clipDuration = 10;
-    const adjustedTotal = actualCount * clipDuration;
     
-    console.log(`🎬 HIGH QUALITY | ${actualCount} clips × 10s | CRF 20 medium`);
+    console.log(`🎬 RENDER | ${actualCount} clips × 10s`);
     
     fs.mkdirSync(dir);
     
@@ -108,38 +107,23 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     if (hasAudio) {
       fs.writeFileSync(audioPath, req.file.buffer);
     } else {
-      await runFfmpeg(['-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo', '-t', String(adjustedTotal), '-c:a', 'libopus', '-y', audioPath]);
+      await runFfmpeg(['-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo', '-t', String(actualCount * 10), '-c:a', 'libopus', '-y', audioPath]);
     }
     
     const segments = [];
     
     for (let i = 0; i < actualCount; i++) {
-      console.log(`📹 Clip ${i+1}/${actualCount}`);
+      console.log(`📹 ${i+1}/${actualCount}`);
       const raw = path.join(dir, `r${i}.mp4`);
       const seg = path.join(dir, `s${i}.mp4`);
       
       await downloadFile(validClips[i].url, raw);
       
-      // Video filter - scale only
-      let vf = 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920';
-      
-      // Subtitles
-      const cStart = i * clipDuration;
-      const cEnd = (i + 1) * clipDuration;
-      const cSubs = subData.filter(s => parseFloat(s.startTime) >= cStart && parseFloat(s.startTime) < cEnd);
-      const subText = cSubs.map(s => s.text).join(' ').replace(/['"\[\]{}%;:,]/g, '').trim().substring(0, 50);
-      
-      if (subText) {
-        const esc = subText.replace(/'/g, "'\\''");
-        vf += `,drawtext=text='${esc}':fontcolor=white:fontsize=44:box=1:boxcolor=black@0.6:boxborderw=8:x=(w-text_w)/2:y=h*0.08`;
-      }
-      
-      // HIGH QUALITY ENCODE
       await runFfmpeg([
-        '-i', raw, '-t', String(clipDuration), '-vf', vf,
-        '-c:v', 'libx264', '-preset', 'medium', '-crf', '20',
-        '-pix_fmt', 'yuv420p', '-profile:v', 'high',
-        '-r', '30', '-threads', '1',
+        '-i', raw, '-t', String(clipDuration),
+        '-vf', 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920',
+        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
+        '-pix_fmt', 'yuv420p', '-r', '30', '-threads', '1',
         '-an', '-y', seg
       ]);
       
@@ -148,22 +132,20 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
       if (global.gc) global.gc();
     }
     
-    // Concatenate
+    // Concat
     const list = path.join(dir, 'list.txt');
     fs.writeFileSync(list, segments.map(f => `file '${f}'`).join('\n'));
     const silent = path.join(dir, 'silent.mp4');
     await runFfmpeg(['-f', 'concat', '-safe', '0', '-i', list, '-c:v', 'copy', '-an', '-y', silent]);
     segments.forEach(f => { try { fs.unlinkSync(f); } catch (e) {} });
     try { fs.unlinkSync(list); } catch (e) {}
-    if (global.gc) global.gc();
     
-    // Add audio
+    // Audio
     const output = path.join(dir, 'output.mp4');
     await runFfmpeg([
-      '-i', silent, '-i', audioPath, '-c:v', 'copy',
-      '-c:a', 'aac', '-b:a', '192k', '-ar', '44100', '-ac', '2',
-      '-threads', '1', '-movflags', '+faststart',
-      '-shortest', '-y', output
+      '-i', silent, '-i', audioPath, '-c:v', 'copy', '-c:a', 'aac',
+      '-b:a', '128k', '-ar', '44100', '-ac', '2', '-threads', '1',
+      '-movflags', '+faststart', '-shortest', '-y', output
     ]);
     
     try { fs.unlinkSync(silent); } catch (e) {}
@@ -172,16 +154,14 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
     const stat = fs.statSync(output);
     console.log(`✅ ${(stat.size/1024/1024).toFixed(2)}MB`);
     
-    req.setTimeout(300000);
     res.set({
       'Content-Type': 'video/mp4',
-      'Content-Disposition': `attachment; filename="HQ_short_${Date.now()}.mp4"`,
+      'Content-Disposition': `attachment; filename="short_${Date.now()}.mp4"`,
       'Content-Length': stat.size
     });
     
     const stream = fs.createReadStream(output);
     stream.on('end', () => setTimeout(() => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) {} }, 60000));
-    stream.on('error', () => { if (!res.headersSent) res.status(500).end(); });
     stream.pipe(res);
     
   } catch (e) {
@@ -193,4 +173,4 @@ app.post('/api/render', upload.single('audio'), async (req, res) => {
 
 try { if (fs.existsSync(TEMP_DIR)) { fs.rmSync(TEMP_DIR, { recursive: true, force: true }); fs.mkdirSync(TEMP_DIR, { recursive: true }); } } catch (e) {}
 
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Port ${PORT} | HIGH QUALITY MODE`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Port ${PORT}`));
